@@ -1,6 +1,6 @@
 import { restoreFromBackup, writeSettingsField, WriteUndoInfo } from "../../config/config-writer";
 import { readEffectiveValue, resolveSettingsPaths } from "../../config/settings-paths";
-import { SETTINGS_FIELDS } from "../../config/settings-schema";
+import { SETTINGS_FIELDS, SettingsFieldDef } from "../../config/settings-schema";
 import {
   areHooksInstalled,
   detectStatusLine,
@@ -98,6 +98,13 @@ export class ConfigFormController {
     const field = SETTINGS_FIELDS.find((f) => f.id === message.fieldId);
     if (!field || !field.keyPath) {
       return { type: "write-result", fieldId: message.fieldId, ok: false, error: "unknown field" };
+    }
+    if (message.scope !== "global" && message.scope !== "project") {
+      return { type: "write-result", fieldId: field.id, ok: false, error: "unknown scope" };
+    }
+    const validationError = validateFieldValue(field, message.value);
+    if (validationError) {
+      return { type: "write-result", fieldId: field.id, ok: false, error: validationError };
     }
     try {
       const result = await writeSettingsField(
@@ -200,6 +207,20 @@ export class ConfigFormController {
       return { type: "undo-result", fieldId: message.fieldId, ok: false, error: describeError(err) };
     }
   }
+}
+
+/** Host-side gate on webview-supplied values before they reach settings.json:
+ *  the form only ever produces strings (`<input>`/`<select>` values), and a
+ *  select field's value must be one of its schema-declared options — anything
+ *  else means the message didn't come from the form as rendered. */
+function validateFieldValue(field: SettingsFieldDef, value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return "value must be a string";
+  }
+  if (field.kind === "select" && field.options && !field.options.some((opt) => opt.value === value)) {
+    return `"${value}" is not an allowed value for ${field.label}`;
+  }
+  return undefined;
 }
 
 function describeError(err: unknown): string {

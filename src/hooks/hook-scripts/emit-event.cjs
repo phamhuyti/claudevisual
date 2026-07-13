@@ -63,7 +63,12 @@ function buildRecord(payload) {
 
 function eventLogFilePath(sessionId) {
   const dir = path.join(os.homedir(), ".claude", "claudevisual");
-  const key = sessionId || `pid-${process.pid}`;
+  // The session id comes from an external stdin payload — sanitize it before
+  // it becomes part of a filename so a crafted value (e.g. `../../x`) can
+  // never escape `dir`. Real Claude Code session ids are UUIDs, which pass
+  // through unchanged. The reader side keys sessions off the `sessionId`
+  // field inside each NDJSON line, not the filename, so this is safe.
+  const key = (sessionId || `pid-${process.pid}`).replace(/[^a-zA-Z0-9-]/g, "-");
   return { dir, filePath: path.join(dir, `events-${key}.ndjson`) };
 }
 
