@@ -133,22 +133,29 @@
         },
         "claudevisual.advisor.thresholds.subagentExpensiveTokens": {
           "type": "number",
-          "default": 150000,
+          "default": 500000,
           "minimum": 0,
-          "description": "Token spend by a single sub-agent above which the advisor flags it for ROI review."
+          "description": "Minimum token spend by a single sub-agent before the advisor even considers flagging it for ROI review — a floor, paired with subagentExpensiveShareOfSession below."
+        },
+        "claudevisual.advisor.thresholds.subagentExpensiveShareOfSession": {
+          "type": "number",
+          "default": 0.15,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share (0-1) of the session's total tokens a single sub-agent must account for, on top of subagentExpensiveTokens, before the advisor flags it as dominating spend. Keeps a legitimately large delegated task in a long session from being flagged just because it's large in absolute terms."
         },
         "claudevisual.advisor.thresholds.modelRightsizeMinTotalTokens": {
           "type": "number",
           "default": 300000,
           "minimum": 0,
-          "description": "Minimum total tokens on an Opus session before the advisor considers suggesting a lighter model."
+          "description": "Minimum total tokens on the main agent's own usage (not counting sub-agents) before the advisor considers suggesting a lighter model for an Opus session."
         },
         "claudevisual.advisor.thresholds.modelRightsizeMaxOutputShare": {
           "type": "number",
-          "default": 0.05,
+          "default": 0.08,
           "minimum": 0,
           "maximum": 1,
-          "description": "Maximum output-token share (0-1) on an Opus session for the advisor to suggest a lighter model — low output share means little of the reasoning premium was used."
+          "description": "Maximum output-token share (0-1) of the main agent's fresh (non-cache-read) tokens for the advisor to suggest a lighter model — low output share means little of the reasoning premium was used on the agent's own direct work."
         },
         "claudevisual.advisor.thresholds.costProjectionMinBurnPerMin": {
           "type": "number",

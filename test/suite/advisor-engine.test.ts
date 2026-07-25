@@ -68,14 +68,37 @@ describe("advisor-engine", () => {
     assert.ok(!ids(s).includes("model-rightsize"));
   });
 
-  it("flags an expensive sub-agent by id", () => {
+  it("does not suggest right-sizing when a delegated sub-agent (not the main agent) is the one reading heavily", () => {
+    const s = emptySessionState("s1", "/p");
+    s.model = "claude-opus-4-8";
+    s.cumulativeUsage = usage(400_000, 40_000, 0, 200_000); // main fresh output share ~9%, above the bar
+    const a = emptySubAgentState("a1", "researcher");
+    a.model = "claude-haiku-4-5";
+    a.tokens = usage(2_000_000, 20_000, 0, 5_000_000); // huge read-heavy sub-agent, own model
+    s.subagents.set("a1", a);
+    assert.ok(!ids(s).includes("model-rightsize"));
+  });
+
+  it("flags a sub-agent that dominates the session's total spend", () => {
     const s = emptySessionState("s1", "/p");
     s.model = "claude-sonnet-5";
+    s.cumulativeUsage = usage(2_000_000, 50_000, 0, 1_000_000); // main total 3.05M
     const a = emptySubAgentState("a1", "researcher");
     a.model = "claude-sonnet-5";
-    a.tokens = usage(120_000, 20_000, 30_000, 10_000); // 180k > cap
+    a.tokens = usage(600_000, 100_000, 100_000, 200_000); // 1M tokens, ~25% of the 4.05M session
     s.subagents.set("a1", a);
     assert.ok(ids(s).some((id) => id.startsWith("subagent-expensive:")));
+  });
+
+  it("does not flag a sub-agent that's large in absolute tokens but a small share of a much larger session", () => {
+    const s = emptySessionState("s1", "/p");
+    s.model = "claude-sonnet-5";
+    s.cumulativeUsage = usage(50_000_000, 500_000, 0, 100_000_000); // 150.5M main total
+    const a = emptySubAgentState("a1", "researcher");
+    a.model = "claude-haiku-4-5";
+    a.tokens = usage(600_000, 100_000, 100_000, 200_000); // 1M tokens, <1% of the session
+    s.subagents.set("a1", a);
+    assert.ok(!ids(s).some((id) => id.startsWith("subagent-expensive:")));
   });
 
   it("warns on repeated compaction", () => {

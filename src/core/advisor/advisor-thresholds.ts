@@ -25,14 +25,22 @@ export interface AdvisorThresholds {
   cacheLowSavedPct: number;
   cacheLowMinTotalTokens: number;
 
-  /** A single sub-agent past this token spend is worth surfacing for ROI review —
-   *  large fan-outs are fine, but one agent quietly burning this much often means a
-   *  cheaper primitive (Grep/Read) would have done. */
+  /** A single sub-agent past this token spend AND past `subagentExpensiveShareOfSession`
+   *  of the session's total is worth surfacing for ROI review. Both gates matter: the
+   *  token floor stops a trivial agent in a tiny session from tripping the rule, and the
+   *  share gate stops a legitimately huge (but proportionally small) delegated task in a
+   *  long session from being flagged — a 500k-token agent is normal in a 150M-token
+   *  session, not evidence of waste. */
   subagentExpensiveTokens: number;
+  subagentExpensiveShareOfSession: number;
 
   /** Model right-sizing (heuristic, phrased "consider" — never asserted). Only consider
    *  a downgrade suggestion when the session is on a top-tier model, has done real work,
-   *  and its output share is low (little generation → the reasoning premium wasn't used). */
+   *  and its output share is low (little generation → the reasoning premium wasn't used).
+   *  Output share is measured against *fresh* tokens (input + output + cache-creation),
+   *  excluding cache-read — cache-read compounds every turn in any long session regardless
+   *  of workload type, so including it makes the ratio trend toward zero for every session
+   *  and stops discriminating read-heavy from write-heavy work. */
   modelRightsizeMinTotalTokens: number;
   modelRightsizeMaxOutputShare: number;
 
@@ -55,9 +63,10 @@ export const DEFAULT_ADVISOR_THRESHOLDS: AdvisorThresholds = {
   cacheChurnMinCreationTokens: 50_000,
   cacheLowSavedPct: 25,
   cacheLowMinTotalTokens: 200_000,
-  subagentExpensiveTokens: 150_000,
+  subagentExpensiveTokens: 500_000,
+  subagentExpensiveShareOfSession: 0.15,
   modelRightsizeMinTotalTokens: 300_000,
-  modelRightsizeMaxOutputShare: 0.05,
+  modelRightsizeMaxOutputShare: 0.08,
   costProjectionMinBurnPerMin: 1_000,
   frequentCompactionCount: 2,
 };

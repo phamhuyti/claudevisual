@@ -43,33 +43,47 @@ function cacheScore(ctx: AdvisorContext): number {
 }
 
 /** Rewards a model matched to its workload. Only Opus-on-read-heavy work is
- *  penalized (the one case the right-sizing rule flags); everything else is full. */
+ *  penalized (the one case the right-sizing rule flags); everything else is full.
+ *  Mirrors `modelRightSizingRule` in `advisor-rules.ts`: main-agent usage only
+ *  (sub-agents run their own models and shouldn't count against Opus's fit), and
+ *  output share measured against fresh (non-cache-read) tokens so it doesn't trend
+ *  toward zero on every sufficiently long session. */
 function modelScore(ctx: AdvisorContext): number {
   if (!ctx.model || !ctx.model.toLowerCase().includes("opus")) {
     return 100;
   }
-  const total = usageTotal(ctx.totalUsage);
-  if (total < SCORE_MIN_TOTAL_TOKENS) {
+  if (usageTotal(ctx.mainUsage) < SCORE_MIN_TOTAL_TOKENS) {
     return 100;
   }
-  const outputShare = ctx.totalUsage.outputTokens / Math.max(total, 1);
+  const fresh = ctx.mainUsage.inputTokens + ctx.mainUsage.outputTokens + ctx.mainUsage.cacheCreationInputTokens;
+  const outputShare = ctx.mainUsage.outputTokens / Math.max(fresh, 1);
   return outputShare <= ctx.thresholds.modelRightsizeMaxOutputShare ? 55 : 100;
 }
 
 /** Penalizes a single sub-agent dominating spend past the "expensive" bar; light
- *  fan-outs and balanced orchestration score full. */
+ *  fan-outs and balanced orchestration score full. Mirrors `subAgentCostRule`: gated
+ *  on share of the session's total, not a raw token count, so a legitimately large
+ *  delegated task in a long session doesn't get scored the same as one runaway agent
+ *  in an otherwise-small session. The penalty curve is intentionally soft (floors at
+ *  50, not 0) — a dominant sub-agent is a "worth a look" signal, not proof of waste,
+ *  and heavy delegation is the encouraged orchestration pattern here. */
 function orchestrationScore(ctx: AdvisorContext): number {
   const subAgents = ctx.economics.byAgent.filter((a) => a.agentId !== "main");
   if (subAgents.length === 0) {
     return 100;
   }
+  const sessionTotal = ctx.economics.totalTokens;
   const worst = Math.max(...subAgents.map((a) => a.tokens));
   const cap = ctx.thresholds.subagentExpensiveTokens;
-  if (worst < cap) {
+  const shareCap = ctx.thresholds.subagentExpensiveShareOfSession;
+  const worstShare = sessionTotal > 0 ? worst / sessionTotal : 0;
+  if (worst < cap || worstShare < shareCap) {
     return 100;
   }
-  const over = (worst - cap) / cap;
-  return clamp(80 - Math.min(50, over * 50));
+  // Guard against a degenerate user-configured shareCap of 0 (allowed by the settings
+  // schema's `minimum: 0`), which would otherwise divide by zero below.
+  const over = (worstShare - shareCap) / Math.max(shareCap, 1e-6);
+  return clamp(85 - Math.min(35, over * 35));
 }
 
 function gradeFor(score: number): string {

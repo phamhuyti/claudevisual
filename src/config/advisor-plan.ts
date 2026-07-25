@@ -31,6 +31,7 @@ function resolveThresholds(cfg: vscode.WorkspaceConfiguration): AdvisorThreshold
     cacheLowSavedPct: num("cacheLowSavedPct"),
     cacheLowMinTotalTokens: num("cacheLowMinTotalTokens"),
     subagentExpensiveTokens: num("subagentExpensiveTokens"),
+    subagentExpensiveShareOfSession: num("subagentExpensiveShareOfSession"),
     modelRightsizeMinTotalTokens: num("modelRightsizeMinTotalTokens"),
     modelRightsizeMaxOutputShare: num("modelRightsizeMaxOutputShare"),
     costProjectionMinBurnPerMin: num("costProjectionMinBurnPerMin"),

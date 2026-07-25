@@ -87,19 +87,36 @@ const cacheEfficiencyRule: AdvisorRule = (ctx) => {
   };
 };
 
+/** Fresh (non-cached) tokens the model actually had to process new work on this
+ *  turn set: input + output + cache-creation. Cache-read is deliberately excluded —
+ *  it compounds every turn in any sufficiently long session regardless of workload
+ *  type (each turn re-sends the full cached prefix), so folding it into the
+ *  denominator drives output share toward zero for every long session and stops
+ *  distinguishing genuinely read-heavy work from ordinary session length. */
+function freshUsageTotal(u: AdvisorContext["mainUsage"]): number {
+  return u.inputTokens + u.outputTokens + u.cacheCreationInputTokens;
+}
+
 /** Model right-sizing (heuristic, conservative). A top-tier model that has done real
- *  work but generated very little output likely didn't exercise the reasoning premium
- *  it costs — worth a "consider a lighter model" nudge. Phrased as a suggestion,
- *  never an assertion, to avoid punishing genuinely hard low-output work. */
+ *  work but generated very little output relative to the fresh context it processed
+ *  likely didn't exercise the reasoning premium it costs — worth a "consider a lighter
+ *  model" nudge. Phrased as a suggestion, never an assertion, to avoid punishing
+ *  genuinely hard low-output work.
+ *
+ *  Measured on the MAIN agent's own usage only, not the session total. Delegated
+ *  sub-agents run their own (often already-cheaper) models and do their own reading —
+ *  folding their usage in here would judge Opus's fit by work Opus never did, and
+ *  penalize exactly the "delegate research to cheap agents" pattern this advisor
+ *  should be encouraging. */
 const modelRightSizingRule: AdvisorRule = (ctx) => {
   if (!ctx.model || !ctx.model.toLowerCase().includes("opus")) {
     return null;
   }
-  const total = usageTotal(ctx.totalUsage);
-  if (total < ctx.thresholds.modelRightsizeMinTotalTokens) {
+  const fresh = freshUsageTotal(ctx.mainUsage);
+  if (usageTotal(ctx.mainUsage) < ctx.thresholds.modelRightsizeMinTotalTokens) {
     return null;
   }
-  const outputShare = ctx.totalUsage.outputTokens / Math.max(total, 1);
+  const outputShare = ctx.mainUsage.outputTokens / Math.max(fresh, 1);
   if (outputShare > ctx.thresholds.modelRightsizeMaxOutputShare) {
     return null;
   }
@@ -108,29 +125,43 @@ const modelRightSizingRule: AdvisorRule = (ctx) => {
     severity: "info",
     category: "model",
     title: "Consider a lighter model for this workload",
-    detail: "This session is on Opus but has generated little output relative to its input — mostly reading/searching. Sonnet costs ~half and may suffice for read-heavy work; switch with /model.",
+    detail: "The main agent is on Opus but has generated little output relative to the fresh context it's read directly (not counting delegated sub-agent work) — mostly reading/searching itself. Sonnet costs ~half and may suffice for read-heavy work; switch with /model.",
     metric: `${Math.round(outputShare * 100)}% output`,
   };
 };
 
-/** A single sub-agent that burned a lot of tokens — flag for ROI review. Large,
- *  deliberate fan-outs are fine; this surfaces the quiet expensive ones where a
- *  direct Grep/Read might have been cheaper. */
+/** A single sub-agent that dominates the session's spend — flag for ROI review.
+ *  Gated on BOTH an absolute token floor and a share of the session's total: large,
+ *  deliberate fan-outs are fine even at high absolute token counts (a 500k-token
+ *  agent is negligible in a 150M-token session), so only an agent that's genuinely
+ *  the dominant cost center is worth surfacing. Even then, the copy stays hedged —
+ *  token spend alone can't tell a narrow lookup that should've been a Grep/Read from
+ *  legitimate large multi-step delegated work; only the user knows which it was. */
 const subAgentCostRule: AdvisorRule = (ctx) => {
+  const sessionTotal = ctx.economics.totalTokens;
+  if (sessionTotal <= 0) {
+    return null;
+  }
   const expensive = ctx.economics.byAgent
-    .filter((a) => a.agentId !== "main" && a.tokens >= ctx.thresholds.subagentExpensiveTokens)
+    .filter(
+      (a) =>
+        a.agentId !== "main" &&
+        a.tokens >= ctx.thresholds.subagentExpensiveTokens &&
+        a.tokens / sessionTotal >= ctx.thresholds.subagentExpensiveShareOfSession
+    )
     .sort((x, y) => y.tokens - x.tokens);
   if (expensive.length === 0) {
     return null;
   }
   const top = expensive[0];
+  const pctOfSession = Math.round((top.tokens / sessionTotal) * 100);
   return {
     id: `subagent-expensive:${top.agentId}`,
     severity: "info",
     category: "orchestration",
-    title: `Expensive sub-agent: ${top.label}`,
-    detail: "This sub-agent's token spend is high. For narrow lookups a direct Grep/Read is far cheaper than spawning an agent; reserve agents for genuinely multi-step work.",
-    metric: formatTokenCount(top.tokens),
+    title: `Sub-agent dominates session spend: ${top.label}`,
+    detail: "This sub-agent accounts for most of the session's spend. If it ran a narrow, single-purpose lookup, a direct Grep/Read would likely have been cheaper; if it carried out genuinely multi-step work, that's expected — worth a quick gut-check either way.",
+    metric: `${formatTokenCount(top.tokens)} (${pctOfSession}% of session)`,
   };
 };
 
