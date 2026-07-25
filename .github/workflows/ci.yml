@@ -22,3 +22,11 @@ jobs:
       - run: npm run compile
       - run: npm test
       - run: npx vsce package
+
+      # Publish the packaged extension so a build can be installed without a
+      # local Node toolchain (download the artifact, `code --install-extension`).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claudevisual-vsix
+          path: "*.vsix"
+          if-no-files-found: error

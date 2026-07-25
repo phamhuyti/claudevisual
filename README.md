@@ -143,6 +143,34 @@ money (set `claudevisual.advisor.plan`).
 - **Per-session activity history** — a timeline of what happened during the session, alongside
   the files-touched panel, so past activity stays reviewable after the fact.
 
+## Account limits (5h / 7d)
+
+Everything above is per-session. The status bar *also* shows your **account-wide** rate
+limits — `5h X% · 7d Y%` — the same numbers `/usage` reports inside Claude Code, so you can
+see how close you are to a limit without leaving the editor and even when no session is open.
+
+ClaudeVisual gets these **without ever reading or storing your credentials**: it runs the
+official `claude -p --no-session-persistence /usage` headlessly and parses its text output —
+exactly as if you had typed `/usage` yourself, using Claude Code's own sign-in. To honor the
+zero-overhead goal it polls sparingly (default every 5 minutes) and only while the VS Code
+window is focused; the item turns a warning color once either window crosses
+`claudevisual.limits.warnPercent`. Run **ClaudeVisual: Refresh Account Limits** to update on
+demand.
+
+Settings under `claudevisual.limits.*`:
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `enabled` | `true` | Show the account-limits status-bar item |
+| `pollIntervalMinutes` | `5` | How often to run `claude /usage` (min 1; focused window only) |
+| `warnPercent` | `90` | Percent at which the item turns to a warning color |
+| `claudePath` | `""` | Optional path to the `claude` executable (empty = from PATH) |
+
+> Note (Windows): `/usage`'s summary lines are occasionally omitted when Claude Code's own
+> usage fetch flakes (ClaudeVisual retries a few times per poll to ride that out). If the
+> item shows `limits n/a`, confirm `claude` is on your PATH and signed in, then use the
+> refresh command.
+
 ## Development
 
 ```bash
@@ -187,3 +215,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Author
 
 Dinh Viet Phu — [@vietphu](https://github.com/vietphu)
+
+Fork maintained by Phan Ngoc Cao Huy — [@phamhuyti](https://github.com/phamhuyti)

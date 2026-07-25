@@ -15,14 +15,29 @@ import {
 } from "./hooks/installer";
 import { DashboardPanel } from "./ui/webview/panel";
 import { StatusBar } from "./ui/status-bar";
+import { LimitsStatusBar } from "./ui/limits-status-bar";
 import { AdvisorNotifier } from "./ui/advisor-notifier";
 import { SidebarViewProvider } from "./ui/webview-view/sidebar-view-provider";
+import { UsageLimitsPoller } from "./core/usage-poller";
 
 export function activate(context: vscode.ExtensionContext): void {
   initLogger(context);
 
   const statusBar = new StatusBar();
   context.subscriptions.push(statusBar);
+
+  // Account-wide 5h/7d rate limits — independent of any workspace session, so
+  // wired here (outside `rebuild`) and driven by its own headless-`/usage`
+  // poller rather than the JSONL store. Shows even when no session is open.
+  const limitsStatusBar = new LimitsStatusBar();
+  const usagePoller = new UsageLimitsPoller();
+  context.subscriptions.push(
+    limitsStatusBar,
+    usagePoller,
+    usagePoller.onDidChange((snapshot) => limitsStatusBar.render(snapshot))
+  );
+  // Polling is started below (`usagePoller.start()`), once the sidebar provider
+  // also exists and is subscribed, so its first snapshot reaches both surfaces.
 
   // Persists across store rebuilds (workspace-folder changes) so its "already
   // notified" dedupe state isn't lost mid-session.
@@ -35,8 +50,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const sidebarProvider = new SidebarViewProvider(context.extensionPath);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(SidebarViewProvider.viewId, sidebarProvider),
-    sidebarProvider
+    sidebarProvider,
+    // Mirror account-limits snapshots into the sidebar header too (not just the
+    // status bar). Registered before start() so the first snapshot reaches it.
+    usagePoller.onDidChange((snapshot) => sidebarProvider.setLimits(snapshot))
   );
+  usagePoller.start();
 
   // Tracks whichever SessionStateStore `rebuild()` (below) currently owns, so
   // the "Open Dashboard" command — registered once here, outside `rebuild`'s
@@ -61,7 +80,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("claudevisual.openSettings", () =>
       vscode.commands.executeCommand("workbench.action.openSettings", "@ext:dinhphu.claudevisual")
-    )
+    ),
+    vscode.commands.registerCommand("claudevisual.refreshLimits", () => usagePoller.refresh())
   );
 
   // Rebuilt whenever workspace folders change (added/removed/reloaded) — not just

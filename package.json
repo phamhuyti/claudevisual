@@ -66,6 +66,10 @@
         "command": "claudevisual.openSettings",
         "title": "ClaudeVisual: Open Settings",
         "icon": "$(gear)"
+      },
+      {
+        "command": "claudevisual.refreshLimits",
+        "title": "ClaudeVisual: Refresh Account Limits"
       }
     ],
     "configuration": {
@@ -168,6 +172,29 @@
           "default": 2,
           "minimum": 1,
           "description": "Number of /compact events in a session at which the advisor flags repeated compaction and suggests splitting the work into a fresh session."
+        },
+        "claudevisual.limits.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show account-wide Claude Code rate limits (5-hour and 7-day usage %) in the status bar. Fetched by running the official `claude -p /usage` headlessly on an interval — ClaudeVisual never reads or stores your credentials."
+        },
+        "claudevisual.limits.pollIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "markdownDescription": "How often (minutes) to refresh the account limits by running `claude /usage`. Polls only while the VS Code window is focused, to honor ClaudeVisual's zero-overhead goal. Minimum 1."
+        },
+        "claudevisual.limits.warnPercent": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "When either the 5-hour or 7-day usage reaches this percent, the account-limits status-bar item turns to a warning color."
+        },
+        "claudevisual.limits.claudePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional path to the `claude` executable used for the `/usage` fetch. Leave empty to use `claude` from PATH."
         }
       }
     },
