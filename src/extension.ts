@@ -15,14 +15,28 @@ import {
 } from "./hooks/installer";
 import { DashboardPanel } from "./ui/webview/panel";
 import { StatusBar } from "./ui/status-bar";
+import { LimitsStatusBar } from "./ui/limits-status-bar";
 import { AdvisorNotifier } from "./ui/advisor-notifier";
 import { SidebarViewProvider } from "./ui/webview-view/sidebar-view-provider";
+import { UsageLimitsPoller } from "./core/usage-poller";
 
 export function activate(context: vscode.ExtensionContext): void {
   initLogger(context);
 
   const statusBar = new StatusBar();
   context.subscriptions.push(statusBar);
+
+  // Account-wide 5h/7d rate limits — independent of any workspace session, so
+  // wired here (outside `rebuild`) and driven by its own headless-`/usage`
+  // poller rather than the JSONL store. Shows even when no session is open.
+  const limitsStatusBar = new LimitsStatusBar();
+  const usagePoller = new UsageLimitsPoller();
+  context.subscriptions.push(
+    limitsStatusBar,
+    usagePoller,
+    usagePoller.onDidChange((snapshot) => limitsStatusBar.render(snapshot))
+  );
+  usagePoller.start();
 
   // Persists across store rebuilds (workspace-folder changes) so its "already
   // notified" dedupe state isn't lost mid-session.
@@ -61,7 +75,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("claudevisual.openSettings", () =>
       vscode.commands.executeCommand("workbench.action.openSettings", "@ext:dinhphu.claudevisual")
-    )
+    ),
+    vscode.commands.registerCommand("claudevisual.refreshLimits", () => usagePoller.refresh())
   );
 
   // Rebuilt whenever workspace folders change (added/removed/reloaded) — not just

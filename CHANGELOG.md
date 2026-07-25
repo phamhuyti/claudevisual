@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- Account-wide rate limits (5-hour and 7-day usage %) in a dedicated status-bar item,
+  fetched by running the official `claude -p /usage` headlessly on an interval — no
+  credential handling. Polls only while the window is focused (default every 5 min),
+  turns a warning color past `claudevisual.limits.warnPercent`, and offers a
+  `ClaudeVisual: Refresh Account Limits` command. Configurable via `claudevisual.limits.*`
+  (`enabled`, `pollIntervalMinutes`, `warnPercent`, `claudePath`).
 - Efficiency Advisor rule thresholds (context warn/crit %, cache churn ratio, cache
   low-reuse floor, expensive sub-agent cap, model right-sizing gates, cost-projection
   burn floor, frequent-compaction count) are now configurable via
