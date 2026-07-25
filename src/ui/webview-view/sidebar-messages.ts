@@ -175,8 +175,26 @@ export interface SessionViewModel {
   files: FileViewModel[];
 }
 
+/** Account-wide rate limits shown in the sidebar header. Plain serializable
+ *  mirror of the host-side `UsageSnapshot` (kept core-import-free like the rest
+ *  of this file). Percentages are omitted until a `/usage` run has parsed. */
+export interface LimitsViewModel {
+  status: "disabled" | "idle" | "polling" | "ok" | "error";
+  fiveHourPercent?: number;
+  sevenDayPercent?: number;
+  fiveHourResets?: string;
+  sevenDayResets?: string;
+  /** Percent at/above which a window renders in the warning color. */
+  warnPercent: number;
+  /** Short failure reason when `status === "error"`. */
+  error?: string;
+}
+
 export interface SidebarViewModel {
   sessions: SessionViewModel[];
+  /** Account-wide 5h/7d limits header. Undefined while the feature is off or
+   *  before the first poller snapshot has reached the sidebar. */
+  limits?: LimitsViewModel;
 }
 
 /** Host → client: the full current view-model (replaces prior render). */

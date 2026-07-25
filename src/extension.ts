@@ -36,7 +36,8 @@ export function activate(context: vscode.ExtensionContext): void {
     usagePoller,
     usagePoller.onDidChange((snapshot) => limitsStatusBar.render(snapshot))
   );
-  usagePoller.start();
+  // Polling is started below (`usagePoller.start()`), once the sidebar provider
+  // also exists and is subscribed, so its first snapshot reaches both surfaces.
 
   // Persists across store rebuilds (workspace-folder changes) so its "already
   // notified" dedupe state isn't lost mid-session.
@@ -49,8 +50,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const sidebarProvider = new SidebarViewProvider(context.extensionPath);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(SidebarViewProvider.viewId, sidebarProvider),
-    sidebarProvider
+    sidebarProvider,
+    // Mirror account-limits snapshots into the sidebar header too (not just the
+    // status bar). Registered before start() so the first snapshot reaches it.
+    usagePoller.onDidChange((snapshot) => sidebarProvider.setLimits(snapshot))
   );
+  usagePoller.start();
 
   // Tracks whichever SessionStateStore `rebuild()` (below) currently owns, so
   // the "Open Dashboard" command — registered once here, outside `rebuild`'s

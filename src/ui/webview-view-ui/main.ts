@@ -9,6 +9,7 @@ import { renderActivity } from "./render-activity";
 import { handleAdvisorAction, renderAdvisor } from "./render-advisor";
 import { renderAgents } from "./render-agents";
 import { renderEconomics } from "./render-economics";
+import { renderLimits } from "./render-limits";
 import { renderVitals } from "./render-vitals";
 
 const IDLE_HTML = `<div class="cv-idle">No active Claude Code session in this workspace.</div>`;
@@ -40,7 +41,10 @@ function renderSession(s: SessionViewModel): string {
 }
 
 function render(root: HTMLElement, vm: SidebarViewModel): void {
-  root.innerHTML = vm.sessions.length === 0 ? IDLE_HTML : vm.sessions.map(renderSession).join("");
+  // Account-limits header renders above the session list (and even when idle),
+  // since it is account-wide, not tied to any one session.
+  const sessionsHtml = vm.sessions.length === 0 ? IDLE_HTML : vm.sessions.map(renderSession).join("");
+  root.innerHTML = renderLimits(vm.limits) + sessionsHtml;
   // Prune remembered expansions for agents/sessions that are no longer
   // present, then re-apply the open state to those that are (innerHTML wiped it).
   const present = new Set<string>();

@@ -392,3 +392,30 @@ body {
     opacity: 0;
   }
 }
+
+/* Account-limits header (render-limits.ts) — account-wide 5h/7d usage, pinned
+   above the session list. Compact, non-interactive readout. */
+.cv-limits {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 8px; margin: 4px 0 10px;
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px;
+  font-size: 11px;
+}
+.cv-limits .lim-label {
+  color: var(--dim); text-transform: uppercase; letter-spacing: .05em; font-size: 9px;
+}
+.cv-limits.cv-limits-err { color: var(--dim); }
+.cv-limits.cv-limits-err .lim-val { color: var(--warn); }
+.cv-limits.cv-limits-wait .lim-val { color: var(--dim); }
+.lim-cell { display: inline-flex; align-items: center; gap: 5px; }
+.lim-cell .lim-name { color: var(--dim); font-family: var(--mono); }
+.lim-cell .lim-pct { font-family: var(--mono); min-width: 30px; text-align: right; }
+.lim-bar {
+  position: relative; width: 46px; height: 5px; border-radius: 3px;
+  background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+  overflow: hidden;
+}
+.lim-fill { position: absolute; inset: 0 auto 0 0; background: var(--good); border-radius: 3px; }
+.lim-cell.near .lim-fill { background: var(--warn); }
+.lim-cell.over .lim-fill { background: var(--crit); }
+.lim-cell.over .lim-pct { color: var(--crit); }

@@ -3,10 +3,11 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { SessionStateStore } from "../../core/session-state-store";
 import { SessionState } from "../../core/types";
-import { HostToSidebarMessage, SidebarToHostMessage, SidebarViewModel } from "./sidebar-messages";
+import { HostToSidebarMessage, LimitsViewModel, SidebarToHostMessage, SidebarViewModel } from "./sidebar-messages";
 import { toSidebarViewModel } from "./session-view-model";
 import { resolveAdvisorConfig } from "../../config/advisor-plan";
 import { copyAdvisorTip } from "../advisor-tip-handoff";
+import { UsageSnapshot } from "../../core/usage-poller";
 
 /**
  * Sidebar `WebviewView` (replaces the former native TreeView). Registered once
@@ -21,8 +22,29 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider, vscode.D
   private view: vscode.WebviewView | undefined;
   private storeSub: vscode.Disposable | undefined;
   private lastVm: SidebarViewModel = { sessions: [] };
+  /** Latest account-limits header, fed independently of the session store (it
+   *  comes from the usage poller, not any workspace folder). Merged into every
+   *  posted view-model so it survives session-driven re-renders. */
+  private lastLimits: LimitsViewModel | undefined;
 
   constructor(private readonly extensionPath: string) {}
+
+  /** Feed the newest account-limits snapshot from the usage poller. */
+  setLimits(snapshot: UsageSnapshot): void {
+    const warnPercent = vscode.workspace
+      .getConfiguration("claudevisual.limits")
+      .get<number>("warnPercent", 90);
+    this.lastLimits = {
+      status: snapshot.status,
+      fiveHourPercent: snapshot.limits?.fiveHour?.percent,
+      sevenDayPercent: snapshot.limits?.sevenDay?.percent,
+      fiveHourResets: snapshot.limits?.fiveHour?.resetsLabel,
+      sevenDayResets: snapshot.limits?.sevenDay?.resetsLabel,
+      warnPercent,
+      error: snapshot.error,
+    };
+    this.post(this.lastVm);
+  }
 
   /** Rebinds to a new store (or clears when no workspace folder is open). */
   setStore(store: SessionStateStore | undefined): void {
@@ -75,7 +97,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider, vscode.D
   }
 
   private post(vm: SidebarViewModel): void {
-    const message: HostToSidebarMessage = { type: "state", vm };
+    // Always carry the latest limits header so a session-driven re-post never
+    // blanks it (and vice-versa: setLimits re-posts with the last sessions vm).
+    const message: HostToSidebarMessage = { type: "state", vm: { ...vm, limits: this.lastLimits } };
     void this.view?.webview.postMessage(message);
   }
 
