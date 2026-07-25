@@ -215,3 +215,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Author
 
 Dinh Viet Phu — [@vietphu](https://github.com/vietphu)
+
+Fork maintained by Phan Ngoc Cao Huy — [@phamhuyti](https://github.com/phamhuyti)
