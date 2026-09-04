@@ -86,7 +86,8 @@ export class UsageOrchestrator implements vscode.Disposable {
     }
     this.publish(next);
 
-    setTimeout(() => void this.poll(false), 2_000);
+    // Load usage immediately on activate / settings change — do not wait.
+    void this.poll(true);
     this.timer = setInterval(() => {
       if (vscode.window.state.focused) {
         void this.poll(false);

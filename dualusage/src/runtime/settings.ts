@@ -6,7 +6,7 @@ export function readSettings(): DualUsageSettings {
   return {
     claudeEnabled: cfg.get<boolean>("providers.claude.enabled", true),
     chatgptEnabled: cfg.get<boolean>("providers.chatgpt.enabled", true),
-    pollIntervalMinutes: Math.max(1, cfg.get<number>("pollIntervalMinutes", 5)),
+    pollIntervalMinutes: Math.max(1, cfg.get<number>("pollIntervalMinutes", 1)),
     warnPercent: cfg.get<number>("warnPercent", 90),
     creditsWarnBalance: cfg.get<number>("creditsWarnBalance", 1),
     claudePath: cfg.get<string>("claudePath", ""),

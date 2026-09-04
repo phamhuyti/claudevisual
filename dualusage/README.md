@@ -39,7 +39,7 @@ DualUsage never writes credentials, never logs access tokens, and does not refre
 | --- | --- | --- |
 | `dualusage.providers.claude.enabled` | `true` | Show Claude |
 | `dualusage.providers.chatgpt.enabled` | `true` | Show ChatGPT |
-| `dualusage.pollIntervalMinutes` | `5` | Refresh while window focused |
+| `dualusage.pollIntervalMinutes` | `1` | Refresh while window focused (minutes) |
 | `dualusage.warnPercent` | `90` | Warning threshold for windows / monthly |
 | `dualusage.creditsWarnBalance` | `1` | Warn when flexible credits &lt; this USD |
 | `dualusage.claudePath` | `""` | Optional `claude` binary path |
