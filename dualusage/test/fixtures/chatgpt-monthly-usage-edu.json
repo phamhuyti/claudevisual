@@ -1,0 +1,8 @@
+{
+  "current_month_usage": 3046.45,
+  "effective_monthly_limit": {
+    "limit": 7000,
+    "enforcement_mode": "HARD_CAP",
+    "limit_mode": "amount_credits"
+  }
+}
