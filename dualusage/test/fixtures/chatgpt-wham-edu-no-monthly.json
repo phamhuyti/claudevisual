@@ -1,0 +1,26 @@
+{
+  "plan_type": "education",
+  "rate_limit": {
+    "allowed": true,
+    "limit_reached": false,
+    "primary_window": {
+      "used_percent": 14,
+      "limit_window_seconds": 18000,
+      "reset_at": 1700000000
+    },
+    "secondary_window": {
+      "used_percent": 33,
+      "limit_window_seconds": 604800,
+      "reset_at": 1700500000
+    }
+  },
+  "credits": {
+    "has_credits": true,
+    "unlimited": false,
+    "balance": null
+  },
+  "spend_control": {
+    "reached": false,
+    "individual_limit": null
+  }
+}

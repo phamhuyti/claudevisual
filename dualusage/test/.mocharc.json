@@ -1,0 +1,7 @@
+{
+  "extension": ["ts"],
+  "spec": ["test/suite/**/*.test.ts"],
+  "require": ["tsx/cjs", "./test/register-vscode-stub.js"],
+  "timeout": 10000,
+  "recursive": true
+}

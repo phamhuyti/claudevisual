@@ -1,0 +1,31 @@
+{
+  "plan_type": "team",
+  "email": "team@example.com",
+  "rate_limit": {
+    "allowed": false,
+    "limit_reached": true,
+    "primary_window": {
+      "used_percent": 100,
+      "limit_window_seconds": 604800,
+      "reset_at": 1700500000
+    },
+    "secondary_window": null
+  },
+  "credits": {
+    "has_credits": true,
+    "unlimited": false,
+    "balance": null
+  },
+  "spend_control": {
+    "reached": false,
+    "individual_limit": {
+      "source": "workspace_spend_controls",
+      "limit": "1000",
+      "used": "36.79",
+      "remaining": "963.21",
+      "used_percent": 4,
+      "remaining_percent": 96,
+      "reset_at": 1702000000
+    }
+  }
+}

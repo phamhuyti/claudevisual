@@ -1,0 +1,113 @@
+:root {
+  --du-fg: var(--vscode-foreground);
+  --du-muted: var(--vscode-descriptionForeground);
+  --du-border: var(--vscode-widget-border, rgba(127, 127, 127, 0.3));
+  --du-warn: var(--vscode-list-warningForeground, #cca700);
+  --du-bar: var(--vscode-progressBar-background, #007acc);
+  --du-bar-bg: var(--vscode-editor-inactiveSelectionBackground, rgba(127, 127, 127, 0.2));
+}
+
+body {
+  margin: 0;
+  padding: 10px 12px 16px;
+  color: var(--du-fg);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+.muted {
+  color: var(--du-muted);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--du-muted);
+}
+
+button.refresh {
+  background: transparent;
+  border: 1px solid var(--du-border);
+  color: var(--du-fg);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.section {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--du-border);
+}
+
+.section:last-child {
+  border-bottom: none;
+}
+
+.section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.section-title .name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.section-title .plan {
+  color: var(--du-muted);
+  font-size: 12px;
+}
+
+.row {
+  margin: 6px 0;
+}
+
+.row-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--du-bar-bg);
+  overflow: hidden;
+}
+
+.meter > span {
+  display: block;
+  height: 100%;
+  background: var(--du-bar);
+}
+
+.meter.warn > span {
+  background: var(--du-warn);
+}
+
+.footer {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--du-muted);
+}
+
+.status-msg {
+  font-size: 12px;
+  color: var(--du-muted);
+  margin: 4px 0 8px;
+}

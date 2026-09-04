@@ -1,0 +1,147 @@
+{
+  "name": "dualusage",
+  "displayName": "DualUsage",
+  "description": "Account usage limits for Claude and ChatGPT in the VS Code status bar and sidebar",
+  "version": "0.1.0",
+  "publisher": "phamhuyti",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "chatgpt",
+    "codex",
+    "usage",
+    "rate limit",
+    "credits"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "dualusage.refreshAll",
+        "title": "DualUsage: Refresh All"
+      },
+      {
+        "command": "dualusage.refreshClaude",
+        "title": "DualUsage: Refresh Claude"
+      },
+      {
+        "command": "dualusage.refreshChatgpt",
+        "title": "DualUsage: Refresh ChatGPT"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dualusage",
+          "title": "DualUsage",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "dualusage": [
+        {
+          "type": "webview",
+          "id": "dualusage.sidebar",
+          "name": "Account usage"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DualUsage",
+      "properties": {
+        "dualusage.providers.claude.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Claude account usage (via `claude /usage`)."
+        },
+        "dualusage.providers.chatgpt.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show ChatGPT account usage (via openai.chatgpt / Codex auth)."
+        },
+        "dualusage.pollIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "How often to refresh usage while the window is focused."
+        },
+        "dualusage.warnPercent": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Warn when any rate window or monthly spend reaches this percent."
+        },
+        "dualusage.creditsWarnBalance": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "description": "Warn when ChatGPT flexible credits balance falls below this USD amount."
+        },
+        "dualusage.claudePath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to the `claude` executable (empty = PATH)."
+        },
+        "dualusage.codexHome": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Codex home directory (empty = $CODEX_HOME or ~/.codex)."
+        },
+        "dualusage.chatgpt.source": {
+          "type": "string",
+          "enum": ["auto", "api", "rollout"],
+          "default": "auto",
+          "enumDescriptions": [
+            "Try the live usage API, then fall back to local rollout files.",
+            "Only call the live ChatGPT usage API.",
+            "Only read local ~/.codex/sessions rollout files."
+          ],
+          "description": "Where to load ChatGPT usage from."
+        },
+        "dualusage.statusBar.style": {
+          "type": "string",
+          "enum": ["split", "compact"],
+          "default": "split",
+          "enumDescriptions": [
+            "One status-bar item per enabled provider.",
+            "Single combined status-bar item."
+          ],
+          "description": "How to show providers on the status bar."
+        },
+        "dualusage.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log verbose DualUsage diagnostics (never logs tokens)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "npm run compile && mocha --config test/.mocharc.json",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.2",
+    "esbuild": "^0.25.0",
+    "mocha": "^11.1.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

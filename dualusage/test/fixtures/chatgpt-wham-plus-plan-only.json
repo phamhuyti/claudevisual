@@ -1,0 +1,29 @@
+{
+  "user_id": "user-1",
+  "account_id": "acct-1",
+  "email": "plus@example.com",
+  "plan_type": "plus",
+  "rate_limit": {
+    "allowed": true,
+    "limit_reached": false,
+    "primary_window": {
+      "used_percent": 32,
+      "limit_window_seconds": 18000,
+      "reset_at": 1700000000
+    },
+    "secondary_window": {
+      "used_percent": 14,
+      "limit_window_seconds": 604800,
+      "reset_at": 1700500000
+    }
+  },
+  "credits": {
+    "has_credits": false,
+    "unlimited": false,
+    "balance": "0"
+  },
+  "spend_control": {
+    "reached": false,
+    "individual_limit": null
+  }
+}
