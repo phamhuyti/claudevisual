@@ -5,6 +5,15 @@
   "version": "0.1.0",
   "publisher": "phamhuyti",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phamhuyti/claudevisual.git",
+    "directory": "dualusage"
+  },
+  "bugs": {
+    "url": "https://github.com/phamhuyti/claudevisual/issues"
+  },
+  "homepage": "https://github.com/phamhuyti/claudevisual/tree/main/dualusage#readme",
   "engines": {
     "vscode": "^1.90.0"
   },
