@@ -1,6 +1,7 @@
 import { DualUsageSettings } from "../domain/types";
 import { ClaudeAdapter } from "./claude/adapter";
 import { ChatgptAdapter } from "./chatgpt/adapter";
+import { CursorAdapter } from "./cursor/adapter";
 import { ProviderAdapter } from "./types";
 
 export function createAdapters(settings: DualUsageSettings): ProviderAdapter[] {
@@ -10,6 +11,9 @@ export function createAdapters(settings: DualUsageSettings): ProviderAdapter[] {
   }
   if (settings.chatgptEnabled) {
     adapters.push(new ChatgptAdapter());
+  }
+  if (settings.cursorEnabled) {
+    adapters.push(new CursorAdapter());
   }
   return adapters;
 }

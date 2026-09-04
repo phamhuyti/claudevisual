@@ -1,0 +1,13 @@
+{
+  "billingCycleStart": "1768399334000",
+  "billingCycleEnd": "1771077734000",
+  "planUsage": {
+    "totalSpend": 2000,
+    "includedSpend": 2000,
+    "limit": 2000,
+    "remaining": 0,
+    "totalPercentUsed": 100
+  },
+  "enabled": true,
+  "displayMessage": "You've used 100% of your usage limit"
+}

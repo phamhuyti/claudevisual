@@ -53,6 +53,9 @@ function formatMonthlyShort(monthly: MonthlySpend | undefined): string | undefin
   if (!monthly) {
     return undefined;
   }
+  if (monthly.source === "cursor_plan") {
+    return `$${monthly.used.toFixed(0)}/$${monthly.limit.toFixed(0)} (${Math.round(monthly.usedPercent)}%)`;
+  }
   return `monthly ${Math.round(monthly.usedPercent)}%`;
 }
 
@@ -96,17 +99,25 @@ export function formatProviderBody(snap: ProviderSnapshot): string {
 }
 
 export function formatProviderLine(snap: ProviderSnapshot): string {
-  const name = snap.provider === "claude" ? "Claude" : "GPT";
+  const name =
+    snap.provider === "claude" ? "Claude" : snap.provider === "chatgpt" ? "GPT" : "Cursor";
   return `${name} ${formatProviderBody(snap)}`;
 }
 
-export function formatCompactLine(claude?: ProviderSnapshot, chatgpt?: ProviderSnapshot): string {
+export function formatCompactLine(
+  claude?: ProviderSnapshot,
+  chatgpt?: ProviderSnapshot,
+  cursor?: ProviderSnapshot
+): string {
   const bits: string[] = [];
   if (claude && claude.status !== "disabled") {
     bits.push(formatProviderLine(claude));
   }
   if (chatgpt && chatgpt.status !== "disabled") {
     bits.push(formatProviderLine(chatgpt));
+  }
+  if (cursor && cursor.status !== "disabled") {
+    bits.push(formatProviderLine(cursor));
   }
   return bits.join(" | ") || "DualUsage";
 }

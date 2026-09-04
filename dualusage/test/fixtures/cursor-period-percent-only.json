@@ -1,0 +1,9 @@
+{
+  "billingCycleStart": "1768399334000",
+  "billingCycleEnd": "1771077734000",
+  "planUsage": {
+    "totalPercentUsed": 12.5,
+    "apiPercentUsed": 12.5
+  },
+  "enabled": true
+}

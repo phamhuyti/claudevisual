@@ -26,11 +26,21 @@ function meter(pct: number, warnAt = 90): string {
   return `<div class="meter${warn}"><span style="width:${clamped}%"></span></div>`;
 }
 
+function providerName(snap: ProviderSnapshot): string {
+  if (snap.provider === "claude") {
+    return "Claude";
+  }
+  if (snap.provider === "chatgpt") {
+    return "ChatGPT";
+  }
+  return "Cursor";
+}
+
 function renderSection(snap: ProviderSnapshot | undefined): string {
   if (!snap || snap.status === "disabled") {
     return "";
   }
-  const name = snap.provider === "claude" ? "Claude" : "ChatGPT";
+  const name = providerName(snap);
   const plan = snap.planType ? `<span class="plan">${esc(snap.planType)}</span>` : "";
   let body = "";
 
@@ -46,27 +56,28 @@ function renderSection(snap: ProviderSnapshot | undefined): string {
     </div>`;
   }
 
-  if (snap.provider === "chatgpt") {
-    if (snap.credits) {
-      let creditText = "No usage credits";
-      if (snap.credits.unlimited) {
-        creditText = "Unlimited";
-      } else if (snap.credits.hasCredits && snap.credits.balance) {
-        creditText = `$${esc(String(snap.credits.balance).replace(/^\$/, ""))}`;
-      }
-      body += `<div class="row">
-        <div class="row-label"><span>Usage credits</span><span>${creditText}</span></div>
-      </div>`;
-      if (snap.credits.hasCredits && !snap.credits.unlimited) {
-        body += `<div class="footer">Included plan usage is consumed first; credits apply after limits.</div>`;
-      }
+  if (snap.credits) {
+    const creditLabel = snap.provider === "cursor" ? "On-demand remaining" : "Usage credits";
+    let creditText = snap.provider === "cursor" ? "None" : "No usage credits";
+    if (snap.credits.unlimited) {
+      creditText = "Unlimited";
+    } else if (snap.credits.hasCredits && snap.credits.balance) {
+      creditText = `$${esc(String(snap.credits.balance).replace(/^\$/, ""))}`;
     }
-    if (snap.monthly) {
-      body += `<div class="row">
-        <div class="row-label"><span>Monthly spend</span><span>${Math.round(snap.monthly.usedPercent)}% · $${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)}</span></div>
-        ${meter(snap.monthly.usedPercent)}
-      </div>`;
+    body += `<div class="row">
+      <div class="row-label"><span>${creditLabel}</span><span>${creditText}</span></div>
+    </div>`;
+    if (snap.provider === "chatgpt" && snap.credits.hasCredits && !snap.credits.unlimited) {
+      body += `<div class="footer">Included plan usage is consumed first; credits apply after limits.</div>`;
     }
+  }
+
+  if (snap.monthly) {
+    const monthlyLabel = snap.provider === "cursor" ? "Plan spend" : "Monthly spend";
+    body += `<div class="row">
+      <div class="row-label"><span>${monthlyLabel}</span><span>${Math.round(snap.monthly.usedPercent)}% · $${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)}</span></div>
+      ${meter(snap.monthly.usedPercent)}
+    </div>`;
   }
 
   if (snap.codeReview) {
@@ -74,6 +85,10 @@ function renderSection(snap: ProviderSnapshot | undefined): string {
       <div class="row-label"><span>Code review</span><span>${Math.round(snap.codeReview.usedPercent)}%</span></div>
       ${meter(snap.codeReview.usedPercent)}
     </div>`;
+  }
+
+  if (snap.promoMessage) {
+    body += `<div class="footer">${esc(snap.promoMessage)}</div>`;
   }
 
   const age = snap.capturedAt ? Math.round((Date.now() - snap.capturedAt) / 1000) : 0;
@@ -87,13 +102,21 @@ function renderSection(snap: ProviderSnapshot | undefined): string {
 }
 
 function render(state: AppState): void {
-  const sections = [renderSection(state.claude), renderSection(state.chatgpt)].filter(Boolean);
+  const sections = [
+    renderSection(state.claude),
+    renderSection(state.chatgpt),
+    renderSection(state.cursor),
+  ].filter(Boolean);
   root.innerHTML = `
     <div class="header">
       <h1>Account usage</h1>
       <button class="refresh" id="refresh">Refresh</button>
     </div>
-    ${sections.length ? sections.join("") : `<div class="muted">Enable Claude and/or ChatGPT in DualUsage settings.</div>`}
+    ${
+      sections.length
+        ? sections.join("")
+        : `<div class="muted">Enable Claude, ChatGPT, and/or Cursor in DualUsage settings.</div>`
+    }
   `;
   document.getElementById("refresh")?.addEventListener("click", () => {
     vscode.postMessage({ type: "refresh" });

@@ -9,17 +9,30 @@ import {
 import { AppState, ProviderSnapshot } from "../domain/types";
 import { readSettings } from "../runtime/settings";
 
+function providerTitle(snap: ProviderSnapshot): string {
+  if (snap.provider === "claude") {
+    return "Claude";
+  }
+  if (snap.provider === "chatgpt") {
+    return "ChatGPT";
+  }
+  return "Cursor";
+}
+
 export class StatusBarController implements vscode.Disposable {
-  private readonly claudeItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
-  private readonly chatgptItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  private readonly claudeItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 102);
+  private readonly chatgptItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
+  private readonly cursorItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   private readonly compactItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 
   constructor() {
     this.claudeItem.name = "DualUsage Claude";
     this.chatgptItem.name = "DualUsage ChatGPT";
+    this.cursorItem.name = "DualUsage Cursor";
     this.compactItem.name = "DualUsage";
     this.claudeItem.command = "dualusage.refreshClaude";
     this.chatgptItem.command = "dualusage.refreshChatgpt";
+    this.cursorItem.command = "dualusage.refreshCursor";
     this.compactItem.command = "dualusage.refreshAll";
   }
 
@@ -28,26 +41,30 @@ export class StatusBarController implements vscode.Disposable {
     if (settings.statusBarStyle === "compact") {
       this.claudeItem.hide();
       this.chatgptItem.hide();
+      this.cursorItem.hide();
       this.renderCompact(state, settings.warnPercent, settings.creditsWarnBalance);
       return;
     }
     this.compactItem.hide();
     this.renderSplit(this.claudeItem, state.claude, settings.warnPercent, settings.creditsWarnBalance);
     this.renderSplit(this.chatgptItem, state.chatgpt, settings.warnPercent, settings.creditsWarnBalance);
+    this.renderSplit(this.cursorItem, state.cursor, settings.warnPercent, settings.creditsWarnBalance);
   }
 
   private renderCompact(state: AppState, warnPercent: number, creditsWarnBalance: number): void {
     const claude = state.claude?.status === "disabled" ? undefined : state.claude;
     const chatgpt = state.chatgpt?.status === "disabled" ? undefined : state.chatgpt;
-    if (!claude && !chatgpt) {
+    const cursor = state.cursor?.status === "disabled" ? undefined : state.cursor;
+    if (!claude && !chatgpt && !cursor) {
       this.compactItem.hide();
       return;
     }
-    this.compactItem.text = `$(dashboard) ${formatCompactLine(claude, chatgpt)}`;
-    this.compactItem.tooltip = buildCombinedTooltip(claude, chatgpt);
+    this.compactItem.text = `$(dashboard) ${formatCompactLine(claude, chatgpt, cursor)}`;
+    this.compactItem.tooltip = buildCombinedTooltip(claude, chatgpt, cursor);
     const warn =
       (claude ? shouldWarn(claude, warnPercent, creditsWarnBalance) : false) ||
-      (chatgpt ? shouldWarn(chatgpt, warnPercent, creditsWarnBalance) : false);
+      (chatgpt ? shouldWarn(chatgpt, warnPercent, creditsWarnBalance) : false) ||
+      (cursor ? shouldWarn(cursor, warnPercent, creditsWarnBalance) : false);
     this.compactItem.backgroundColor = warn
       ? new vscode.ThemeColor("statusBarItem.warningBackground")
       : undefined;
@@ -75,12 +92,13 @@ export class StatusBarController implements vscode.Disposable {
   dispose(): void {
     this.claudeItem.dispose();
     this.chatgptItem.dispose();
+    this.cursorItem.dispose();
     this.compactItem.dispose();
   }
 }
 
 function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
-  const title = snap.provider === "claude" ? "Claude" : "ChatGPT";
+  const title = providerTitle(snap);
   const lines: string[] = [`**${title} account usage**`, ""];
   if (snap.planType) {
     lines.push(`Plan: \`${snap.planType}\``);
@@ -98,9 +116,10 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
     if (snap.credits.unlimited) {
       lines.push("Credits: unlimited");
     } else if (snap.credits.hasCredits && snap.credits.balance) {
-      lines.push(`Credits: $${String(snap.credits.balance).replace(/^\$/, "")}`);
+      const label = snap.provider === "cursor" ? "On-demand remaining" : "Credits";
+      lines.push(`${label}: $${String(snap.credits.balance).replace(/^\$/, "")}`);
     } else {
-      lines.push("Credits: none");
+      lines.push(snap.provider === "cursor" ? "On-demand: none" : "Credits: none");
     }
   }
   if (snap.monthly) {
@@ -109,20 +128,27 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
         ` ($${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)})`
     );
   }
+  if (snap.promoMessage) {
+    lines.push(snap.promoMessage);
+  }
   lines.push("", `_source: ${snap.source}_`, "", "Click to refresh.");
   return new vscode.MarkdownString(lines.join("\n"));
 }
 
-function buildCombinedTooltip(claude?: ProviderSnapshot, chatgpt?: ProviderSnapshot): vscode.MarkdownString {
+function buildCombinedTooltip(
+  claude?: ProviderSnapshot,
+  chatgpt?: ProviderSnapshot,
+  cursor?: ProviderSnapshot
+): vscode.MarkdownString {
   const parts: string[] = [];
-  if (claude) {
-    parts.push(buildTooltip(claude).value);
-  }
-  if (chatgpt) {
+  for (const snap of [claude, chatgpt, cursor]) {
+    if (!snap) {
+      continue;
+    }
     if (parts.length) {
       parts.push("---");
     }
-    parts.push(buildTooltip(chatgpt).value);
+    parts.push(buildTooltip(snap).value);
   }
   return new vscode.MarkdownString(parts.join("\n\n"));
 }

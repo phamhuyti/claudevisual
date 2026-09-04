@@ -1,8 +1,8 @@
 {
   "name": "dualusage",
   "displayName": "DualUsage",
-  "description": "Account usage limits for Claude and ChatGPT in the VS Code status bar and sidebar",
-  "version": "0.1.1",
+  "description": "Account usage limits for Claude, ChatGPT, and Cursor in the VS Code status bar and sidebar",
+  "version": "0.2.0",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -24,6 +24,7 @@
     "claude",
     "chatgpt",
     "codex",
+    "cursor",
     "usage",
     "rate limit",
     "credits"
@@ -45,6 +46,10 @@
       {
         "command": "dualusage.refreshChatgpt",
         "title": "DualUsage: Refresh ChatGPT"
+      },
+      {
+        "command": "dualusage.refreshCursor",
+        "title": "DualUsage: Refresh Cursor"
       }
     ],
     "viewsContainers": {
@@ -78,6 +83,11 @@
           "default": true,
           "description": "Show ChatGPT account usage (via openai.chatgpt / Codex auth)."
         },
+        "dualusage.providers.cursor.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Cursor account usage (via local Cursor state.vscdb + Dashboard API)."
+        },
         "dualusage.pollIntervalMinutes": {
           "type": "number",
           "default": 1,
@@ -95,7 +105,7 @@
           "type": "number",
           "default": 1,
           "minimum": 0,
-          "description": "Warn when ChatGPT flexible credits balance falls below this USD amount."
+          "description": "Warn when ChatGPT flexible credits or Cursor on-demand remaining falls below this USD amount."
         },
         "dualusage.claudePath": {
           "type": "string",
@@ -106,6 +116,11 @@
           "type": "string",
           "default": "",
           "description": "Optional Codex home directory (empty = $CODEX_HOME or ~/.codex)."
+        },
+        "dualusage.cursorDataPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to Cursor data root or state.vscdb (empty = OS default Cursor globalStorage)."
         },
         "dualusage.chatgpt.source": {
           "type": "string",

@@ -5,6 +5,8 @@ import { createAdapters } from "../providers/registry";
 import { FetchContext } from "../providers/types";
 import { readSettings } from "./settings";
 
+const PROVIDER_IDS: ProviderId[] = ["claude", "chatgpt", "cursor"];
+
 export class UsageOrchestrator implements vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<AppState>();
   readonly onDidChange = this.emitter.event;
@@ -51,12 +53,21 @@ export class UsageOrchestrator implements vscode.Disposable {
   }
 
   private isStale(): boolean {
-    const snaps = [this.state.claude, this.state.chatgpt].filter(Boolean) as ProviderSnapshot[];
+    const snaps = PROVIDER_IDS.map((id) => this.state[id]).filter(Boolean) as ProviderSnapshot[];
     if (snaps.length === 0) {
       return true;
     }
     const newest = Math.max(...snaps.map((s) => s.capturedAt || 0));
     return Date.now() - newest > this.intervalMs();
+  }
+
+  private enabledMap(): Record<ProviderId, boolean> {
+    const s = readSettings();
+    return {
+      claude: s.claudeEnabled,
+      chatgpt: s.chatgptEnabled,
+      cursor: s.cursorEnabled,
+    };
   }
 
   private restart(): void {
@@ -67,22 +78,16 @@ export class UsageOrchestrator implements vscode.Disposable {
     if (this.disposed) {
       return;
     }
-    const settings = readSettings();
-    // Publish disabled placeholders immediately so UI can hide items.
+    const enabled = this.enabledMap();
     const next: AppState = {};
-    if (!settings.claudeEnabled) {
-      next.claude = disabledSnap("claude");
-    } else if (this.state.claude?.status !== "disabled") {
-      next.claude = this.state.claude ?? pollingSnap("claude");
-    } else {
-      next.claude = pollingSnap("claude");
-    }
-    if (!settings.chatgptEnabled) {
-      next.chatgpt = disabledSnap("chatgpt");
-    } else if (this.state.chatgpt?.status !== "disabled") {
-      next.chatgpt = this.state.chatgpt ?? pollingSnap("chatgpt");
-    } else {
-      next.chatgpt = pollingSnap("chatgpt");
+    for (const id of PROVIDER_IDS) {
+      if (!enabled[id]) {
+        next[id] = disabledSnap(id);
+      } else if (this.state[id]?.status !== "disabled") {
+        next[id] = this.state[id] ?? pollingSnap(id);
+      } else {
+        next[id] = pollingSnap(id);
+      }
     }
     this.publish(next);
 
@@ -104,9 +109,11 @@ export class UsageOrchestrator implements vscode.Disposable {
     }
     this.inFlight = true;
     const settings = readSettings();
+    const enabled = this.enabledMap();
     const ctx: FetchContext = {
       claudePath: settings.claudePath,
       codexHome: settings.codexHome,
+      cursorDataPath: settings.cursorDataPath,
       chatgptSource: settings.chatgptSource,
     };
 
@@ -122,15 +129,14 @@ export class UsageOrchestrator implements vscode.Disposable {
         status: prev?.status === "ok" ? "ok" : "polling",
         provider: a.id,
         windows: prev?.windows ?? [],
-        source: prev?.source ?? (a.id === "claude" ? "cli" : "api"),
+        source: prev?.source ?? defaultSource(a.id),
         capturedAt: prev?.capturedAt ?? Date.now(),
       };
     }
-    if (!settings.claudeEnabled) {
-      pending.claude = disabledSnap("claude");
-    }
-    if (!settings.chatgptEnabled) {
-      pending.chatgpt = disabledSnap("chatgpt");
+    for (const id of PROVIDER_IDS) {
+      if (!enabled[id]) {
+        pending[id] = disabledSnap(id);
+      }
     }
     this.publish(pending);
 
@@ -144,7 +150,7 @@ export class UsageOrchestrator implements vscode.Disposable {
             return {
               provider: adapter.id,
               windows: [],
-              source: adapter.id === "claude" ? ("cli" as const) : ("api" as const),
+              source: defaultSource(adapter.id),
               capturedAt: Date.now(),
               status: "error" as const,
               error: err instanceof Error ? err.message : String(err),
@@ -154,11 +160,10 @@ export class UsageOrchestrator implements vscode.Disposable {
       );
 
       const next: AppState = { ...this.state };
-      if (!settings.claudeEnabled) {
-        next.claude = disabledSnap("claude");
-      }
-      if (!settings.chatgptEnabled) {
-        next.chatgpt = disabledSnap("chatgpt");
+      for (const id of PROVIDER_IDS) {
+        if (!enabled[id]) {
+          next[id] = disabledSnap(id);
+        }
       }
       for (const snap of results) {
         const prev = this.state[snap.provider];
@@ -198,11 +203,15 @@ export class UsageOrchestrator implements vscode.Disposable {
   }
 }
 
+function defaultSource(provider: ProviderId): ProviderSnapshot["source"] {
+  return provider === "claude" ? "cli" : "api";
+}
+
 function disabledSnap(provider: ProviderId): ProviderSnapshot {
   return {
     provider,
     windows: [],
-    source: provider === "claude" ? "cli" : "api",
+    source: defaultSource(provider),
     capturedAt: Date.now(),
     status: "disabled",
   };
@@ -212,7 +221,7 @@ function pollingSnap(provider: ProviderId): ProviderSnapshot {
   return {
     provider,
     windows: [],
-    source: provider === "claude" ? "cli" : "api",
+    source: defaultSource(provider),
     capturedAt: Date.now(),
     status: "polling",
   };

@@ -23,7 +23,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("dualusage.refreshAll", () => orchestrator.refreshAll()),
     vscode.commands.registerCommand("dualusage.refreshClaude", () => orchestrator.refreshProvider("claude")),
-    vscode.commands.registerCommand("dualusage.refreshChatgpt", () => orchestrator.refreshProvider("chatgpt"))
+    vscode.commands.registerCommand("dualusage.refreshChatgpt", () => orchestrator.refreshProvider("chatgpt")),
+    vscode.commands.registerCommand("dualusage.refreshCursor", () => orchestrator.refreshProvider("cursor"))
   );
 
   statusBar.render(orchestrator.current);

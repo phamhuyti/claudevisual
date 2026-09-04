@@ -1,9 +1,9 @@
 # DualUsage
 
-Account usage for **Claude** and **ChatGPT** in VS Code — status bar + sidebar.
+Account usage for **Claude**, **ChatGPT**, and **Cursor** in VS Code — status bar + sidebar.
 
 Greenfield extension: independent provider adapters, shared UI. Does not inject into
-Claude Code or the ChatGPT (`openai.chatgpt`) extension.
+Claude Code, the ChatGPT (`openai.chatgpt`) extension, or Cursor itself.
 
 ## Requirements
 
@@ -13,25 +13,29 @@ Install and sign in to at least one companion:
 | --- | --- |
 | Claude | [Claude Code](https://claude.com/product/claude-code) CLI signed in (`claude` on PATH) |
 | ChatGPT | [ChatGPT VS Code extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) — **Sign in with ChatGPT** (not API key only) |
+| Cursor | [Cursor](https://cursor.com) desktop signed in (reads local `state.vscdb`) |
 
 Credentials are read locally only:
 
 - Claude: via headless `claude -p --no-session-persistence /usage` (uses CLI login)
 - ChatGPT: `~/.codex/auth.json` (or `$CODEX_HOME`) + `GET https://chatgpt.com/backend-api/wham/usage`
+- Cursor: `state.vscdb` (`cursorAuth/*`) + `POST https://api2.cursor.sh/…/GetCurrentPeriodUsage`
 
-DualUsage never writes credentials, never logs access tokens, and does not refresh OAuth.
+DualUsage never writes credentials and never logs access tokens. For Cursor it may refresh an
+access token **in memory** when the JWT is expired (using the refresh token already on disk);
+it does not write tokens back to `state.vscdb`.
 
 ## What you see
 
-- **Status bar:** `Claude 5h … · 7d …` and/or `GPT 5h … · 7d … · $credits · monthly N%`
-- **Sidebar (DualUsage activity bar):** plan, window meters, flexible usage credits, monthly Team/EDU spend
+- **Status bar:** `Claude 5h … · 7d …`, `GPT … · $credits · monthly N%`, and/or `Cursor $used/$limit (N%) · $ondemand`
+- **Sidebar (DualUsage activity bar):** plan, window meters, flexible / on-demand credits, monthly / plan spend
 - Click a status item (or Command Palette) to refresh
 
 ### Included usage vs credits vs monthly
 
-1. **Included plan windows** (rolling 5h / 7d, durations labeled from the payload) are used first.
-2. **Flexible usage credits** (personal Plus/Pro purchases) apply after included limits — shown as `$balance` or `credits ∞`.
-3. **Monthly spend** (Team `spend_control.individual_limit`, or EDU/Enterprise via a monthly-usage fallback API) shows a separate monthly meter.
+1. **Included plan windows** (Claude / ChatGPT rolling 5h / 7d) are used first.
+2. **Flexible usage credits** (ChatGPT) or **on-demand remaining** (Cursor) apply after included limits.
+3. **Monthly / plan spend** (ChatGPT Team/EDU, or Cursor billing-cycle plan spend) shows a separate meter.
 
 ## Settings
 
@@ -39,13 +43,15 @@ DualUsage never writes credentials, never logs access tokens, and does not refre
 | --- | --- | --- |
 | `dualusage.providers.claude.enabled` | `true` | Show Claude |
 | `dualusage.providers.chatgpt.enabled` | `true` | Show ChatGPT |
+| `dualusage.providers.cursor.enabled` | `true` | Show Cursor |
 | `dualusage.pollIntervalMinutes` | `1` | Refresh while window focused (minutes) |
 | `dualusage.warnPercent` | `90` | Warning threshold for windows / monthly |
-| `dualusage.creditsWarnBalance` | `1` | Warn when flexible credits &lt; this USD |
+| `dualusage.creditsWarnBalance` | `1` | Warn when flexible / on-demand credits &lt; this USD |
 | `dualusage.claudePath` | `""` | Optional `claude` binary path |
 | `dualusage.codexHome` | `""` | Optional Codex home |
+| `dualusage.cursorDataPath` | `""` | Optional Cursor data root or `state.vscdb` |
 | `dualusage.chatgpt.source` | `auto` | `auto` / `api` / `rollout` |
-| `dualusage.statusBar.style` | `split` | `split` (two items) or `compact` |
+| `dualusage.statusBar.style` | `split` | `split` (per provider) or `compact` |
 
 ## Install from a release
 
@@ -98,7 +104,8 @@ Release is created.
 ## Privacy & limitations
 
 - Local credentials only; no DualUsage cloud backend.
-- ChatGPT usage endpoints are undocumented product APIs and may change.
+- ChatGPT and Cursor usage endpoints are undocumented product APIs and may change.
+- Cursor auth requires a readable local `state.vscdb` (and `sqlite3` or `python3` on PATH to query it).
 - OS keyring-only Codex auth (no `auth.json` file) is not supported in v0.1 — open the ChatGPT extension so it writes file auth, or set Codex to file credential store.
 - API-key-only OpenAI auth cannot query ChatGPT plan windows; sign in with ChatGPT.
 
