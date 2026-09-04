@@ -47,6 +47,16 @@ DualUsage never writes credentials, never logs access tokens, and does not refre
 | `dualusage.chatgpt.source` | `auto` | `auto` / `api` / `rollout` |
 | `dualusage.statusBar.style` | `split` | `split` (two items) or `compact` |
 
+## Install from a release
+
+Download `dualusage-<version>.vsix` from the
+[GitHub Releases](https://github.com/phamhuyti/claudevisual/releases) page, then in VS Code run
+**Extensions: Install from VSIX…** (or `code --install-extension dualusage-<version>.vsix`).
+
+Every push to `main` that touches `dualusage/` also uploads a `dualusage-vsix` artifact on the
+[DualUsage workflow](https://github.com/phamhuyti/claudevisual/actions/workflows/dualusage.yml)
+run, if you want a build that has not been released yet.
+
 ## Install from source
 
 ```bash
@@ -61,6 +71,29 @@ npx vsce package --no-dependencies
 npm test
 npm run typecheck
 ```
+
+## Releasing
+
+Releases are cut by the `DualUsage` GitHub Actions workflow
+(`.github/workflows/dualusage.yml`). It typechecks, tests, packages the VSIX, and attaches it to
+a GitHub Release with auto-generated notes.
+
+1. Bump `version` in `dualusage/package.json` and merge to `main`.
+2. Tag and push — the tag must be `dualusage-v<version>` and match `package.json`, otherwise the
+   build fails:
+
+   ```bash
+   git tag dualusage-v0.2.0
+   git push origin dualusage-v0.2.0
+   ```
+
+   Alternatively, run the workflow manually from the Actions tab with **release** checked; the
+   tag is created from the current `package.json` version.
+
+Marketplace publishing is opt-in: add a `VSCE_PAT` repository secret (a Marketplace personal
+access token for the `phamhuyti` publisher) and the release job will also run `vsce publish` on
+tag pushes, or on manual runs with **publish** checked. Without the secret, only the GitHub
+Release is created.
 
 ## Privacy & limitations
 
