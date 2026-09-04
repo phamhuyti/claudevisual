@@ -244,7 +244,8 @@ Một webview, hai section độc lập (Claude trên / ChatGPT dưới — ho�
 - Multi-account switcher
 - OS keyring
 - OpenAI Platform Billing (API-key daily $)
-- Gemini / Copilot / Cursor providers (architecture cho phép thêm adapter sau)
+- Gemini / Copilot providers (architecture cho phép thêm adapter sau)
+- ~~Cursor provider~~ → shipped in DualUsage 0.2 (local `state.vscdb` + Dashboard API)
 - Mua credits / checkout flows
 
 ## Fixtures / tests

@@ -3,6 +3,7 @@ import { ProviderId, ProviderSnapshot } from "../domain/types";
 export interface FetchContext {
   claudePath: string;
   codexHome: string;
+  cursorDataPath: string;
   chatgptSource: "auto" | "api" | "rollout";
   signal?: AbortSignal;
 }

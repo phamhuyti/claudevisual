@@ -1,4 +1,4 @@
-export type ProviderId = "claude" | "chatgpt";
+export type ProviderId = "claude" | "chatgpt" | "cursor";
 
 export interface RateWindow {
   usedPercent: number;
@@ -20,7 +20,7 @@ export interface MonthlySpend {
   remaining?: number;
   usedPercent: number;
   resetsAt?: number;
-  source: "spend_control" | "monthly_usage_api";
+  source: "spend_control" | "monthly_usage_api" | "cursor_plan";
   enforcementMode?: string;
 }
 
@@ -55,16 +55,19 @@ export interface ProviderSnapshot {
 export interface AppState {
   claude?: ProviderSnapshot;
   chatgpt?: ProviderSnapshot;
+  cursor?: ProviderSnapshot;
 }
 
 export interface DualUsageSettings {
   claudeEnabled: boolean;
   chatgptEnabled: boolean;
+  cursorEnabled: boolean;
   pollIntervalMinutes: number;
   warnPercent: number;
   creditsWarnBalance: number;
   claudePath: string;
   codexHome: string;
+  cursorDataPath: string;
   chatgptSource: "auto" | "api" | "rollout";
   statusBarStyle: "split" | "compact";
   debug: boolean;
