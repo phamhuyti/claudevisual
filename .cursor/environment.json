@@ -1,0 +1,11 @@
+{
+  "name": "ClaudeVisual",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "esbuild watch",
+      "command": "npm run watch",
+      "description": "Incremental esbuild rebuild of the extension bundle (dist/) on source change. Run `npm run typecheck`, `npm test`, and `npx vsce package` manually as needed; see CONTRIBUTING.md."
+    }
+  ]
+}
