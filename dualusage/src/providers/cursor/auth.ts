@@ -94,10 +94,7 @@ function cleanToken(v: string | undefined): string | undefined {
   }
   const t = v.trim();
   // SQLite / storage sometimes wraps strings in quotes.
-  if (
-    (t.startsWith('"') && t.endsWith('"')) ||
-    (t.startsWith("'") && t.endsWith("'"))
-  ) {
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
     return t.slice(1, -1).trim() || undefined;
   }
   return t || undefined;

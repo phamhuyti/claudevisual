@@ -3,12 +3,7 @@ import { logDebug, logError } from "../../log";
 import { HttpStatusError } from "../chatgpt/wham-client";
 import { FetchContext, ProviderAdapter } from "../types";
 import { readCursorAuth, resolveCursorStateDb } from "./auth";
-import {
-  fetchCurrentPeriodUsage,
-  fetchPlanInfo,
-  isJwtExpired,
-  refreshAccessToken,
-} from "./client";
+import { fetchCurrentPeriodUsage, fetchPlanInfo, isJwtExpired, refreshAccessToken } from "./client";
 import { parseCursorPeriodUsage, parseCursorPlanInfo } from "./parse";
 
 export class CursorAdapter implements ProviderAdapter {

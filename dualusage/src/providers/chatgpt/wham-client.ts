@@ -14,7 +14,10 @@ export class HttpStatusError extends Error {
   }
 }
 
-function mergeSignals(timeoutMs: number, outer?: AbortSignal): { signal: AbortSignal; dispose: () => void } {
+function mergeSignals(
+  timeoutMs: number,
+  outer?: AbortSignal
+): { signal: AbortSignal; dispose: () => void } {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const onOuter = (): void => ctrl.abort(outer?.reason);
@@ -59,7 +62,10 @@ async function getJson(
   }
 }
 
-export function buildChatgptHeaders(accessToken: string, accountId: string): Record<string, string> {
+export function buildChatgptHeaders(
+  accessToken: string,
+  accountId: string
+): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
     "ChatGPT-Account-Id": accountId,
@@ -82,5 +88,10 @@ export async function fetchMonthlyUsage(
   timeoutMs = 10_000,
   signal?: AbortSignal
 ): Promise<unknown> {
-  return getJson(monthlyUsageUrl(accountId), buildChatgptHeaders(accessToken, accountId), timeoutMs, signal);
+  return getJson(
+    monthlyUsageUrl(accountId),
+    buildChatgptHeaders(accessToken, accountId),
+    timeoutMs,
+    signal
+  );
 }

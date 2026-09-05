@@ -13,9 +13,18 @@ export function readSettings(): DualUsageSettings {
     cursorEnabled: cfg.get<boolean>("providers.cursor.enabled", true),
     providersOrder: normalizeOrder(cfg.get<string[]>("providers.order", DEFAULT_ORDER)),
     pollIntervalMinutes: Math.max(1, cfg.get<number>("pollIntervalMinutes", 1)),
-    claudePollIntervalMinutes: Math.max(0, cfg.get<number>("providers.claude.pollIntervalMinutes", 0)),
-    chatgptPollIntervalMinutes: Math.max(0, cfg.get<number>("providers.chatgpt.pollIntervalMinutes", 0)),
-    cursorPollIntervalMinutes: Math.max(0, cfg.get<number>("providers.cursor.pollIntervalMinutes", 0)),
+    claudePollIntervalMinutes: Math.max(
+      0,
+      cfg.get<number>("providers.claude.pollIntervalMinutes", 0)
+    ),
+    chatgptPollIntervalMinutes: Math.max(
+      0,
+      cfg.get<number>("providers.chatgpt.pollIntervalMinutes", 0)
+    ),
+    cursorPollIntervalMinutes: Math.max(
+      0,
+      cfg.get<number>("providers.cursor.pollIntervalMinutes", 0)
+    ),
     warnPercent: cfg.get<number>("warnPercent", 90),
     claudeWarnPercent: Math.max(0, cfg.get<number>("providers.claude.warnPercent", 0)),
     chatgptWarnPercent: Math.max(0, cfg.get<number>("providers.chatgpt.warnPercent", 0)),

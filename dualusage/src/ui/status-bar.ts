@@ -33,7 +33,10 @@ function providerIcon(id: ProviderId): string {
   return "$(code)";
 }
 
-function clickCommand(id: ProviderId | "all", action: DualUsageSettings["statusBarClickAction"]): string {
+function clickCommand(
+  id: ProviderId | "all",
+  action: DualUsageSettings["statusBarClickAction"]
+): string {
   if (action === "openSidebar") {
     return "dualusage.focusSidebar";
   }
@@ -66,8 +69,7 @@ function formatUltra(snap: ProviderSnapshot, settings: DualUsageSettings): strin
   if (settings.statusBarShowMonthly && snap.monthly) {
     parts.push(`$${snap.monthly.used.toFixed(0)}/$${snap.monthly.limit.toFixed(0)}`);
   }
-  const short =
-    snap.provider === "claude" ? "C" : snap.provider === "chatgpt" ? "G" : "Cur";
+  const short = snap.provider === "claude" ? "C" : snap.provider === "chatgpt" ? "G" : "Cur";
   return parts.length ? `${short} ${parts.join(" · ")}` : `${short} ${formatProviderBody(snap)}`;
 }
 
@@ -112,10 +114,22 @@ function formatLine(snap: ProviderSnapshot, settings: DualUsageSettings): string
 }
 
 export class StatusBarController implements vscode.Disposable {
-  private readonly claudeItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 102);
-  private readonly chatgptItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
-  private readonly cursorItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  private readonly compactItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  private readonly claudeItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    102
+  );
+  private readonly chatgptItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    101
+  );
+  private readonly cursorItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100
+  );
+  private readonly compactItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100
+  );
 
   constructor() {
     this.claudeItem.name = "DualUsage Claude";
@@ -198,9 +212,7 @@ export class StatusBarController implements vscode.Disposable {
       item.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
       return;
     }
-    const warn = live.some((s) =>
-      shouldWarn(s, settings.warnPercent, settings.creditsWarnBalance)
-    );
+    const warn = live.some((s) => shouldWarn(s, settings.warnPercent, settings.creditsWarnBalance));
     item.backgroundColor = warn
       ? new vscode.ThemeColor("statusBarItem.warningBackground")
       : undefined;
@@ -257,14 +269,16 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
     `[Refresh](command:dualusage.refresh${snap.provider === "claude" ? "Claude" : snap.provider === "chatgpt" ? "Chatgpt" : "Cursor"}) · [Open sidebar](command:dualusage.focusSidebar) · [Settings](command:dualusage.openSettings)`
   );
   const md = new vscode.MarkdownString(lines.join("\n"), true);
-  md.isTrusted = { enabledCommands: [
-    "dualusage.refreshClaude",
-    "dualusage.refreshChatgpt",
-    "dualusage.refreshCursor",
-    "dualusage.refreshAll",
-    "dualusage.focusSidebar",
-    "dualusage.openSettings",
-  ] };
+  md.isTrusted = {
+    enabledCommands: [
+      "dualusage.refreshClaude",
+      "dualusage.refreshChatgpt",
+      "dualusage.refreshCursor",
+      "dualusage.refreshAll",
+      "dualusage.focusSidebar",
+      "dualusage.openSettings",
+    ],
+  };
   md.supportThemeIcons = true;
   return md;
 }

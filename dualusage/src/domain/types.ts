@@ -25,13 +25,7 @@ export interface MonthlySpend {
 }
 
 export type SnapshotStatus =
-  | "ok"
-  | "disabled"
-  | "signed_out"
-  | "api_key_only"
-  | "cli_missing"
-  | "error"
-  | "polling";
+  "ok" | "disabled" | "signed_out" | "api_key_only" | "cli_missing" | "error" | "polling";
 
 export interface ProviderSnapshot {
   provider: ProviderId;

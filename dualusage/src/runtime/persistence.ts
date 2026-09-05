@@ -1,5 +1,11 @@
 import * as vscode from "vscode";
-import { AppState, HistoryPoint, HistoryState, ProviderId, ProviderSnapshot } from "../domain/types";
+import {
+  AppState,
+  HistoryPoint,
+  HistoryState,
+  ProviderId,
+  ProviderSnapshot,
+} from "../domain/types";
 import { worstUsedPercent } from "../domain/format";
 
 const STATE_KEY = "dualusage.lastAppState";

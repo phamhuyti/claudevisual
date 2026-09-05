@@ -214,7 +214,12 @@ export class UsageOrchestrator implements vscode.Disposable {
       const prev = pending[a.id];
       pending[a.id] = {
         ...(prev ?? pollingSnap(a.id)),
-        status: prev?.status === "ok" || prev?.cached ? (prev.status === "ok" ? "ok" : prev.status) : "polling",
+        status:
+          prev?.status === "ok" || prev?.cached
+            ? prev.status === "ok"
+              ? "ok"
+              : prev.status
+            : "polling",
         provider: a.id,
         windows: prev?.windows ?? [],
         source: prev?.source ?? defaultSource(a.id),
@@ -222,7 +227,10 @@ export class UsageOrchestrator implements vscode.Disposable {
         cached: prev?.cached,
       };
       // Keep showing cached/ok numbers while refreshing; only mark polling when empty.
-      if (!prev || (prev.status !== "ok" && !prev.windows.length && !prev.credits && !prev.monthly)) {
+      if (
+        !prev ||
+        (prev.status !== "ok" && !prev.windows.length && !prev.credits && !prev.monthly)
+      ) {
         pending[a.id]!.status = "polling";
       }
     }

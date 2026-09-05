@@ -10,8 +10,9 @@ All notable changes to DualUsage are documented in this file.
 - Usage history ring (≈1 sample / 5 minutes, ~48h) with sparkline in provider cards.
 - Stale / cached badges; per-provider `pollIntervalMinutes` and `warnPercent`; `providers.order`.
 - `dualusage.toggleProvider` QuickPick + webview context menu; deep links to each provider usage page.
-
-All notable changes to DualUsage are documented in this file.
+- ESLint, Prettier, EditorConfig, Dependabot; marketplace icon/banner/categories; onboarding walkthrough.
+- Unit tests for persistence, threshold notifier, and cached orchestrator hydrate.
+- Root README marks ClaudeVisual as legacy in favor of DualUsage; ChatGPTVisual plan marked superseded.
 
 ## [0.3.0] — 2026-09-05
 

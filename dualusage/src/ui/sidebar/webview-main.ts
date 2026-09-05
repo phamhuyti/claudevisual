@@ -179,9 +179,7 @@ function cta(snap: ProviderSnapshot): { message: string; settings?: boolean } {
 }
 
 function sparkline(id: ProviderId): string {
-  const vals = history.points
-    .map((p) => p[id])
-    .filter((v): v is number => typeof v === "number");
+  const vals = history.points.map((p) => p[id]).filter((v): v is number => typeof v === "number");
   if (vals.length < 2) {
     return "";
   }
@@ -275,8 +273,7 @@ function card(snap: ProviderSnapshot | undefined): string {
     })
   );
 
-  const hasData =
-    snap.windows.length > 0 || !!snap.credits || !!snap.monthly || !!snap.codeReview;
+  const hasData = snap.windows.length > 0 || !!snap.credits || !!snap.monthly || !!snap.codeReview;
   let body = "";
 
   if (snap.status !== "ok" && !hasData) {

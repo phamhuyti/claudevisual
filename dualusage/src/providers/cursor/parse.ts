@@ -1,12 +1,9 @@
-import {
-  FlexibleCredits,
-  MonthlySpend,
-  ProviderSnapshot,
-  RateWindow,
-} from "../../domain/types";
+import { FlexibleCredits, MonthlySpend, ProviderSnapshot, RateWindow } from "../../domain/types";
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : undefined;
 }
 
 function asNumber(v: unknown): number | undefined {
@@ -59,11 +56,7 @@ export function parseCursorPeriodUsage(
   const resetsAt = msToUnixSeconds(billingEndMs);
 
   let windowSeconds: number | undefined;
-  if (
-    billingStartMs !== undefined &&
-    billingEndMs !== undefined &&
-    billingEndMs > billingStartMs
-  ) {
+  if (billingStartMs !== undefined && billingEndMs !== undefined && billingEndMs > billingStartMs) {
     windowSeconds = Math.max(1, Math.round((billingEndMs - billingStartMs) / 1000));
   }
 
@@ -101,8 +94,7 @@ export function parseCursorPeriodUsage(
     if (limitCents !== undefined && limitCents > 0 && usedCents !== undefined) {
       const limit = centsToUsd(limitCents);
       const used = centsToUsd(usedCents);
-      const pct =
-        usedPercent ?? Math.min(100, Math.max(0, (used / limit) * 100));
+      const pct = usedPercent ?? Math.min(100, Math.max(0, (used / limit) * 100));
       monthly = {
         limit,
         used,
@@ -141,8 +133,7 @@ export function parseCursorPeriodUsage(
       credits = {
         hasCredits,
         unlimited: false,
-        balance:
-          remainingCents !== undefined ? formatUsd(centsToUsd(remainingCents)) : undefined,
+        balance: remainingCents !== undefined ? formatUsd(centsToUsd(remainingCents)) : undefined,
         overageLimitReached:
           individualLimit !== undefined &&
           individualLimit > 0 &&
@@ -155,11 +146,7 @@ export function parseCursorPeriodUsage(
   }
 
   const planFromPayload = asString(asRecord(root.planInfo)?.planName);
-  const planType =
-    opts?.planName ||
-    planFromPayload ||
-    opts?.membershipType ||
-    undefined;
+  const planType = opts?.planName || planFromPayload || opts?.membershipType || undefined;
 
   const displayMessage = asString(root.displayMessage);
 

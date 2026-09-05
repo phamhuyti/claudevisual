@@ -145,17 +145,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
       pollIntervalMinutes: s.pollIntervalMinutes,
       pollIntervalByProvider: {
         claude:
-          s.claudePollIntervalMinutes > 0
-            ? s.claudePollIntervalMinutes
-            : s.pollIntervalMinutes,
+          s.claudePollIntervalMinutes > 0 ? s.claudePollIntervalMinutes : s.pollIntervalMinutes,
         chatgpt:
-          s.chatgptPollIntervalMinutes > 0
-            ? s.chatgptPollIntervalMinutes
-            : s.pollIntervalMinutes,
+          s.chatgptPollIntervalMinutes > 0 ? s.chatgptPollIntervalMinutes : s.pollIntervalMinutes,
         cursor:
-          s.cursorPollIntervalMinutes > 0
-            ? s.cursorPollIntervalMinutes
-            : s.pollIntervalMinutes,
+          s.cursorPollIntervalMinutes > 0 ? s.cursorPollIntervalMinutes : s.pollIntervalMinutes,
       },
     };
   }

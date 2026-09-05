@@ -18,6 +18,7 @@
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
   "keywords": [
@@ -305,23 +306,90 @@
           "group": "dualusage@3"
         }
       ]
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "dualusage.onboarding",
+        "title": "Get started with DualUsage",
+        "description": "Show Claude, ChatGPT, and Cursor account usage in VS Code.",
+        "steps": [
+          {
+            "id": "openSidebar",
+            "title": "Open the DualUsage sidebar",
+            "description": "Click the DualUsage activity-bar icon (or run **DualUsage: Focus Sidebar**).",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "DualUsage"
+            },
+            "completionEvents": [
+              "onView:dualusage.sidebar"
+            ]
+          },
+          {
+            "id": "enableProviders",
+            "title": "Enable the providers you use",
+            "description": "Run **DualUsage: Toggle Providers** or open Settings and enable Claude / ChatGPT / Cursor.",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "Providers"
+            },
+            "completionEvents": [
+              "onCommand:dualusage.toggleProvider",
+              "onSettingChanged:dualusage.providers.claude.enabled"
+            ]
+          },
+          {
+            "id": "signIn",
+            "title": "Sign in to each provider",
+            "description": "Claude Code CLI, ChatGPT/Codex extension (ChatGPT login), and/or Cursor desktop \u2014 DualUsage only reads local auth.",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "Sign in"
+            }
+          },
+          {
+            "id": "thresholds",
+            "title": "Set warn thresholds",
+            "description": "Configure ``dualusage.warnPercent`` and optional notifications so you get a one-shot toast when usage crosses the line.",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "Thresholds"
+            },
+            "completionEvents": [
+              "onSettingChanged:dualusage.warnPercent"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc -p . --noEmit && tsc -p tsconfig.webview.json --noEmit",
     "test": "npm run compile && mocha --config test/.mocharc.json",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies",
+    "lint": "eslint src test --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,css,json,md}\" \"test/**/*.{ts,json}\" \"package.json\" \"README.md\" \"CHANGELOG.md\"",
+    "format:check": "prettier --check \"src/**/*.{ts,css,json,md}\" \"test/**/*.{ts,json}\" \"package.json\" \"README.md\" \"CHANGELOG.md\""
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.13.10",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.2.2",
     "esbuild": "^0.25.0",
+    "eslint": "^10.10.0",
     "mocha": "^11.1.0",
+    "prettier": "^3.9.6",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.69.0"
+  },
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1b1f24",
+    "theme": "dark"
   }
 }

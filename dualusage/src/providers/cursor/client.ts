@@ -16,7 +16,10 @@ function connectHeaders(accessToken: string): Record<string, string> {
   };
 }
 
-function mergeSignals(timeoutMs: number, outer?: AbortSignal): { signal: AbortSignal; dispose: () => void } {
+function mergeSignals(
+  timeoutMs: number,
+  outer?: AbortSignal
+): { signal: AbortSignal; dispose: () => void } {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const onOuter = (): void => ctrl.abort(outer?.reason);
