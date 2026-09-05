@@ -2,6 +2,12 @@
 
 All notable changes to DualUsage are documented in this file.
 
+## [0.4.1] — 2026-09-05
+
+### Changed
+
+- Cursor plan usage now shows **remaining** dollars (e.g. `$0 left`) in the status bar, tooltip, and sidebar instead of `$used/$limit`.
+
 ## [0.4.0]
 
 ### Fixed

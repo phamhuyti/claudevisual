@@ -1,5 +1,6 @@
 import {
   formatCountdown,
+  formatCursorPlanRemaining,
   formatResets,
   pacePercent,
   severityForPercent,
@@ -333,11 +334,15 @@ function card(snap: ProviderSnapshot | undefined): string {
     }
 
     if (snap.monthly) {
-      const label = snap.provider === "cursor" ? "Plan spend" : "Monthly spend";
+      const isCursorPlan = snap.provider === "cursor" && snap.monthly.source === "cursor_plan";
+      const label = isCursorPlan ? "Plan remaining" : snap.provider === "cursor" ? "Plan spend" : "Monthly spend";
+      const amount = isCursorPlan
+        ? formatCursorPlanRemaining(snap.monthly, { fractionDigits: 2 })
+        : `$${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)}`;
       body += `<div class="meter-row">
         <div class="meter-label">
           <span class="left">${label}</span>
-          <span class="right">$${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)} · <span data-reset-at="${snap.monthly.resetsAt ?? ""}">${esc(formatCountdown(snap.monthly.resetsAt))}</span></span>
+          <span class="right">${amount} · <span data-reset-at="${snap.monthly.resetsAt ?? ""}">${esc(formatCountdown(snap.monthly.resetsAt))}</span></span>
         </div>
         ${meter(snap.monthly.usedPercent, warn, undefined, label)}
       </div>`;

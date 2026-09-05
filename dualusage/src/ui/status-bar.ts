@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import {
   formatCompactLine,
   formatCountdown,
+  formatCursorPlanRemaining,
   formatProviderBody,
   formatProviderLine,
   formatResets,
@@ -67,7 +68,11 @@ function formatUltra(snap: ProviderSnapshot, settings: DualUsageSettings): strin
     parts.push(`$${bal}`);
   }
   if (settings.statusBarShowMonthly && snap.monthly) {
-    parts.push(`$${snap.monthly.used.toFixed(0)}/$${snap.monthly.limit.toFixed(0)}`);
+    if (snap.monthly.source === "cursor_plan") {
+      parts.push(formatCursorPlanRemaining(snap.monthly));
+    } else {
+      parts.push(`$${snap.monthly.used.toFixed(0)}/$${snap.monthly.limit.toFixed(0)}`);
+    }
   }
   const short = snap.provider === "claude" ? "C" : snap.provider === "chatgpt" ? "G" : "Cur";
   return parts.length ? `${short} ${parts.join(" · ")}` : `${short} ${formatProviderBody(snap)}`;
@@ -103,9 +108,7 @@ function formatLine(snap: ProviderSnapshot, settings: DualUsageSettings): string
   }
   if (settings.statusBarShowMonthly && snap.monthly) {
     if (snap.monthly.source === "cursor_plan") {
-      parts.push(
-        `$${snap.monthly.used.toFixed(0)}/$${snap.monthly.limit.toFixed(0)} (${Math.round(snap.monthly.usedPercent)}%)`
-      );
+      parts.push(formatCursorPlanRemaining(snap.monthly, { withPercent: true }));
     } else {
       parts.push(`monthly ${Math.round(snap.monthly.usedPercent)}%`);
     }
@@ -255,9 +258,15 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
     }
   }
   if (snap.monthly) {
-    lines.push(
-      `Monthly: \`${unicodeBar(snap.monthly.usedPercent)}\` ($${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)})`
-    );
+    if (snap.monthly.source === "cursor_plan") {
+      lines.push(
+        `Plan remaining: \`${unicodeBar(snap.monthly.usedPercent)}\` ${formatCursorPlanRemaining(snap.monthly, { fractionDigits: 2 })} (of $${snap.monthly.limit.toFixed(2)})`
+      );
+    } else {
+      lines.push(
+        `Monthly: \`${unicodeBar(snap.monthly.usedPercent)}\` ($${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)})`
+      );
+    }
   }
   if (snap.promoMessage) {
     lines.push(snap.promoMessage);
