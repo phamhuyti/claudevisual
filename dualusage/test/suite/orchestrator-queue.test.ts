@@ -36,6 +36,26 @@ class SlowAdapter implements ProviderAdapter {
 }
 
 describe("UsageOrchestrator queue + abort", () => {
+  const vscode = require("vscode");
+  const prevGetConfiguration = vscode.workspace.getConfiguration;
+
+  before(() => {
+    vscode.workspace.getConfiguration = () => ({
+      get: (key: string, def: unknown) => {
+        if (key === "providers.claude.enabled") return true;
+        if (key === "providers.chatgpt.enabled") return true;
+        if (key === "providers.cursor.enabled") return true;
+        if (key === "pollIntervalSeconds") return 60;
+        return def;
+      },
+      inspect: () => undefined,
+    });
+  });
+
+  after(() => {
+    vscode.workspace.getConfiguration = prevGetConfiguration;
+  });
+
   it("queues a forced refresh while a poll is in flight", async () => {
     const slow = new SlowAdapter();
     const orch = new UsageOrchestrator({

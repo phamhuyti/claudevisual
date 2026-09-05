@@ -2,6 +2,12 @@
 
 All notable changes to DualUsage are documented in this file.
 
+## [0.4.3] — 2026-09-05
+
+### Changed
+
+- Claude, ChatGPT, and Cursor providers are **disabled by default**. Enable the ones you use via Settings or **DualUsage: Toggle Providers**.
+
 ## [0.4.2] — 2026-09-05
 
 ### Changed
