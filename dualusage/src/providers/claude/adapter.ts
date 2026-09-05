@@ -19,7 +19,7 @@ export class ClaudeAdapter implements ProviderAdapter {
 
     try {
       logDebug("claude: running /usage");
-      const text = await runClaudeUsageCommand(ctx.claudePath);
+      const text = await runClaudeUsageCommand(ctx.claudePath, ctx.signal);
       const windows = parseClaudeUsageText(text);
       if (windows.length === 0) {
         return {

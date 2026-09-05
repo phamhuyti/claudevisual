@@ -3,6 +3,8 @@
 [![CI](https://github.com/vietphu/claudevisual/actions/workflows/ci.yml/badge.svg)](https://github.com/vietphu/claudevisual/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> **Legacy notice:** Active development has moved to **[DualUsage](./dualusage/)** (`dualusage/`) for Claude + ChatGPT + Cursor account usage in the status bar and sidebar. This ClaudeVisual extension remains available but is no longer the focus of new features.
+
 ## Introduction
 
 Real-time visibility into [Claude Code](https://claude.com/product/claude-code) sessions,

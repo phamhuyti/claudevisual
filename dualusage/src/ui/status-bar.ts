@@ -1,57 +1,159 @@
 import * as vscode from "vscode";
 import {
   formatCompactLine,
+  formatCountdown,
+  formatProviderBody,
   formatProviderLine,
   formatResets,
+  isLimitHit,
   shouldWarn,
+  unicodeBar,
   windowLabel,
 } from "../domain/format";
-import { AppState, ProviderSnapshot } from "../domain/types";
-import { readSettings } from "../runtime/settings";
+import { AppState, ProviderId, ProviderSnapshot } from "../domain/types";
+import { DualUsageSettings, readSettings } from "../runtime/settings";
 
-function providerTitle(snap: ProviderSnapshot): string {
-  if (snap.provider === "claude") {
+function providerTitle(id: ProviderId): string {
+  if (id === "claude") {
     return "Claude";
   }
-  if (snap.provider === "chatgpt") {
+  if (id === "chatgpt") {
     return "ChatGPT";
   }
   return "Cursor";
 }
 
+function providerIcon(id: ProviderId): string {
+  if (id === "claude") {
+    return "$(comment-discussion)";
+  }
+  if (id === "chatgpt") {
+    return "$(hubot)";
+  }
+  return "$(code)";
+}
+
+function clickCommand(
+  id: ProviderId | "all",
+  action: DualUsageSettings["statusBarClickAction"]
+): string {
+  if (action === "openSidebar") {
+    return "dualusage.focusSidebar";
+  }
+  if (action === "openSettings") {
+    return "dualusage.openSettings";
+  }
+  if (id === "all") {
+    return "dualusage.refreshAll";
+  }
+  if (id === "claude") {
+    return "dualusage.refreshClaude";
+  }
+  if (id === "chatgpt") {
+    return "dualusage.refreshChatgpt";
+  }
+  return "dualusage.refreshCursor";
+}
+
+function formatUltra(snap: ProviderSnapshot, settings: DualUsageSettings): string {
+  const parts: string[] = [];
+  if (settings.statusBarShowWindows) {
+    for (const w of snap.windows.slice(0, 2)) {
+      parts.push(`${windowLabel(w.windowSeconds)} ${Math.round(w.usedPercent)}%`);
+    }
+  }
+  if (settings.statusBarShowCredits && snap.credits?.hasCredits && snap.credits.balance) {
+    const bal = String(snap.credits.balance).replace(/^\$/, "");
+    parts.push(`$${bal}`);
+  }
+  if (settings.statusBarShowMonthly && snap.monthly) {
+    parts.push(`$${snap.monthly.used.toFixed(0)}/$${snap.monthly.limit.toFixed(0)}`);
+  }
+  const short = snap.provider === "claude" ? "C" : snap.provider === "chatgpt" ? "G" : "Cur";
+  return parts.length ? `${short} ${parts.join(" · ")}` : `${short} ${formatProviderBody(snap)}`;
+}
+
+function formatLine(snap: ProviderSnapshot, settings: DualUsageSettings): string {
+  if (settings.statusBarStyle === "ultra") {
+    return formatUltra(snap, settings);
+  }
+  // Compact / split: optionally strip fields by rebuilding from body pieces.
+  if (
+    settings.statusBarShowWindows &&
+    settings.statusBarShowCredits &&
+    settings.statusBarShowMonthly
+  ) {
+    return formatProviderLine(snap);
+  }
+  const name =
+    snap.provider === "claude" ? "Claude" : snap.provider === "chatgpt" ? "GPT" : "Cursor";
+  const parts: string[] = [];
+  if (settings.statusBarShowWindows) {
+    for (const w of snap.windows) {
+      parts.push(`${windowLabel(w.windowSeconds)} ${Math.round(w.usedPercent)}%`);
+    }
+  }
+  if (settings.statusBarShowCredits && snap.credits) {
+    if (snap.credits.unlimited) {
+      parts.push("credits ∞");
+    } else if (snap.credits.hasCredits && snap.credits.balance) {
+      const raw = snap.credits.balance.trim();
+      parts.push(raw.startsWith("$") ? raw : `$${raw}`);
+    }
+  }
+  if (settings.statusBarShowMonthly && snap.monthly) {
+    if (snap.monthly.source === "cursor_plan") {
+      parts.push(
+        `$${snap.monthly.used.toFixed(0)}/$${snap.monthly.limit.toFixed(0)} (${Math.round(snap.monthly.usedPercent)}%)`
+      );
+    } else {
+      parts.push(`monthly ${Math.round(snap.monthly.usedPercent)}%`);
+    }
+  }
+  return parts.length ? `${name} ${parts.join(" · ")}` : formatProviderLine(snap);
+}
+
 export class StatusBarController implements vscode.Disposable {
-  private readonly claudeItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 102);
-  private readonly chatgptItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
-  private readonly cursorItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  private readonly compactItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  private readonly claudeItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    102
+  );
+  private readonly chatgptItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    101
+  );
+  private readonly cursorItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100
+  );
+  private readonly compactItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100
+  );
 
   constructor() {
     this.claudeItem.name = "DualUsage Claude";
     this.chatgptItem.name = "DualUsage ChatGPT";
     this.cursorItem.name = "DualUsage Cursor";
     this.compactItem.name = "DualUsage";
-    this.claudeItem.command = "dualusage.refreshClaude";
-    this.chatgptItem.command = "dualusage.refreshChatgpt";
-    this.cursorItem.command = "dualusage.refreshCursor";
-    this.compactItem.command = "dualusage.refreshAll";
   }
 
   render(state: AppState): void {
     const settings = readSettings();
-    if (settings.statusBarStyle === "compact") {
+    if (settings.statusBarStyle === "compact" || settings.statusBarStyle === "ultra") {
       this.claudeItem.hide();
       this.chatgptItem.hide();
       this.cursorItem.hide();
-      this.renderCompact(state, settings.warnPercent, settings.creditsWarnBalance);
+      this.renderCompact(state, settings);
       return;
     }
     this.compactItem.hide();
-    this.renderSplit(this.claudeItem, state.claude, settings.warnPercent, settings.creditsWarnBalance);
-    this.renderSplit(this.chatgptItem, state.chatgpt, settings.warnPercent, settings.creditsWarnBalance);
-    this.renderSplit(this.cursorItem, state.cursor, settings.warnPercent, settings.creditsWarnBalance);
+    this.renderSplit(this.claudeItem, state.claude, settings);
+    this.renderSplit(this.chatgptItem, state.chatgpt, settings);
+    this.renderSplit(this.cursorItem, state.cursor, settings);
   }
 
-  private renderCompact(state: AppState, warnPercent: number, creditsWarnBalance: number): void {
+  private renderCompact(state: AppState, settings: DualUsageSettings): void {
     const claude = state.claude?.status === "disabled" ? undefined : state.claude;
     const chatgpt = state.chatgpt?.status === "disabled" ? undefined : state.chatgpt;
     const cursor = state.cursor?.status === "disabled" ? undefined : state.cursor;
@@ -59,34 +161,61 @@ export class StatusBarController implements vscode.Disposable {
       this.compactItem.hide();
       return;
     }
-    this.compactItem.text = `$(dashboard) ${formatCompactLine(claude, chatgpt, cursor)}`;
+
+    let text: string;
+    if (settings.statusBarStyle === "ultra") {
+      const bits: string[] = [];
+      if (claude) {
+        bits.push(formatUltra(claude, settings));
+      }
+      if (chatgpt) {
+        bits.push(formatUltra(chatgpt, settings));
+      }
+      if (cursor) {
+        bits.push(formatUltra(cursor, settings));
+      }
+      text = bits.join(" | ") || "DualUsage";
+    } else {
+      text = formatCompactLine(claude, chatgpt, cursor);
+    }
+
+    this.compactItem.text = `$(dashboard) ${text}`;
     this.compactItem.tooltip = buildCombinedTooltip(claude, chatgpt, cursor);
-    const warn =
-      (claude ? shouldWarn(claude, warnPercent, creditsWarnBalance) : false) ||
-      (chatgpt ? shouldWarn(chatgpt, warnPercent, creditsWarnBalance) : false) ||
-      (cursor ? shouldWarn(cursor, warnPercent, creditsWarnBalance) : false);
-    this.compactItem.backgroundColor = warn
-      ? new vscode.ThemeColor("statusBarItem.warningBackground")
-      : undefined;
+    this.compactItem.command = clickCommand("all", settings.statusBarClickAction);
+    this.applyBackground(this.compactItem, [claude, chatgpt, cursor], settings);
     this.compactItem.show();
   }
 
   private renderSplit(
     item: vscode.StatusBarItem,
     snap: ProviderSnapshot | undefined,
-    warnPercent: number,
-    creditsWarnBalance: number
+    settings: DualUsageSettings
   ): void {
     if (!snap || snap.status === "disabled") {
       item.hide();
       return;
     }
-    item.text = `$(dashboard) ${formatProviderLine(snap)}`;
+    item.text = `${providerIcon(snap.provider)} ${formatLine(snap, settings)}`;
     item.tooltip = buildTooltip(snap);
-    item.backgroundColor = shouldWarn(snap, warnPercent, creditsWarnBalance)
+    item.command = clickCommand(snap.provider, settings.statusBarClickAction);
+    this.applyBackground(item, [snap], settings);
+    item.show();
+  }
+
+  private applyBackground(
+    item: vscode.StatusBarItem,
+    snaps: Array<ProviderSnapshot | undefined>,
+    settings: DualUsageSettings
+  ): void {
+    const live = snaps.filter((s): s is ProviderSnapshot => !!s);
+    if (live.some(isLimitHit)) {
+      item.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
+      return;
+    }
+    const warn = live.some((s) => shouldWarn(s, settings.warnPercent, settings.creditsWarnBalance));
+    item.backgroundColor = warn
       ? new vscode.ThemeColor("statusBarItem.warningBackground")
       : undefined;
-    item.show();
   }
 
   dispose(): void {
@@ -98,7 +227,7 @@ export class StatusBarController implements vscode.Disposable {
 }
 
 function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
-  const title = providerTitle(snap);
+  const title = providerTitle(snap.provider);
   const lines: string[] = [`**${title} account usage**`, ""];
   if (snap.planType) {
     lines.push(`Plan: \`${snap.planType}\``);
@@ -110,7 +239,10 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
     lines.push(`Status: ${snap.status}${snap.error ? ` — ${snap.error}` : ""}`);
   }
   for (const w of snap.windows) {
-    lines.push(`${windowLabel(w.windowSeconds)}: ${Math.round(w.usedPercent)}% used · resets ${formatResets(w)}`);
+    const cd = formatCountdown(w.resetsAt);
+    lines.push(
+      `${windowLabel(w.windowSeconds)}: \`${unicodeBar(w.usedPercent)}\` · resets ${formatResets(w)} (${cd})`
+    );
   }
   if (snap.credits) {
     if (snap.credits.unlimited) {
@@ -124,15 +256,31 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
   }
   if (snap.monthly) {
     lines.push(
-      `Monthly: ${Math.round(snap.monthly.usedPercent)}%` +
-        ` ($${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)})`
+      `Monthly: \`${unicodeBar(snap.monthly.usedPercent)}\` ($${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)})`
     );
   }
   if (snap.promoMessage) {
     lines.push(snap.promoMessage);
   }
-  lines.push("", `_source: ${snap.source}_`, "", "Click to refresh.");
-  return new vscode.MarkdownString(lines.join("\n"));
+  lines.push(
+    "",
+    `_source: ${snap.source}_`,
+    "",
+    `[Refresh](command:dualusage.refresh${snap.provider === "claude" ? "Claude" : snap.provider === "chatgpt" ? "Chatgpt" : "Cursor"}) · [Open sidebar](command:dualusage.focusSidebar) · [Settings](command:dualusage.openSettings)`
+  );
+  const md = new vscode.MarkdownString(lines.join("\n"), true);
+  md.isTrusted = {
+    enabledCommands: [
+      "dualusage.refreshClaude",
+      "dualusage.refreshChatgpt",
+      "dualusage.refreshCursor",
+      "dualusage.refreshAll",
+      "dualusage.focusSidebar",
+      "dualusage.openSettings",
+    ],
+  };
+  md.supportThemeIcons = true;
+  return md;
 }
 
 function buildCombinedTooltip(
@@ -150,5 +298,17 @@ function buildCombinedTooltip(
     }
     parts.push(buildTooltip(snap).value);
   }
-  return new vscode.MarkdownString(parts.join("\n\n"));
+  const md = new vscode.MarkdownString(parts.join("\n\n"), true);
+  md.isTrusted = {
+    enabledCommands: [
+      "dualusage.refreshClaude",
+      "dualusage.refreshChatgpt",
+      "dualusage.refreshCursor",
+      "dualusage.refreshAll",
+      "dualusage.focusSidebar",
+      "dualusage.openSettings",
+    ],
+  };
+  md.supportThemeIcons = true;
+  return md;
 }

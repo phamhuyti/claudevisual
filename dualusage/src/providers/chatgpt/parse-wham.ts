@@ -1,12 +1,9 @@
-import {
-  FlexibleCredits,
-  MonthlySpend,
-  ProviderSnapshot,
-  RateWindow,
-} from "../../domain/types";
+import { FlexibleCredits, MonthlySpend, ProviderSnapshot, RateWindow } from "../../domain/types";
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : undefined;
 }
 
 function asNumber(v: unknown): number | undefined {
@@ -55,7 +52,10 @@ function parseCredits(raw: unknown): FlexibleCredits | undefined {
   const unlimited = Boolean(o.unlimited);
   const balanceRaw = o.balance;
   const balance =
-    hasCredits && balanceRaw !== null && balanceRaw !== undefined && String(balanceRaw).trim() !== ""
+    hasCredits &&
+    balanceRaw !== null &&
+    balanceRaw !== undefined &&
+    String(balanceRaw).trim() !== ""
       ? String(balanceRaw)
       : undefined;
   return {
@@ -116,7 +116,11 @@ export function parseMonthlyUsageApi(payload: unknown): MonthlySpend | undefined
   };
 }
 
-export function needsMonthlyFallback(planType: string | undefined, monthly: MonthlySpend | undefined, credits: FlexibleCredits | undefined): boolean {
+export function needsMonthlyFallback(
+  planType: string | undefined,
+  monthly: MonthlySpend | undefined,
+  credits: FlexibleCredits | undefined
+): boolean {
   if (monthly) {
     return false;
   }
@@ -130,7 +134,10 @@ export function needsMonthlyFallback(planType: string | undefined, monthly: Mont
 /**
  * Parse GET /backend-api/wham/usage JSON into a partial snapshot (status filled by caller).
  */
-export function parseWhamUsagePayload(payload: unknown): Omit<ProviderSnapshot, "provider" | "capturedAt" | "status" | "source"> & {
+export function parseWhamUsagePayload(payload: unknown): Omit<
+  ProviderSnapshot,
+  "provider" | "capturedAt" | "status" | "source"
+> & {
   spendControlReached?: boolean;
 } {
   const root = asRecord(payload) ?? {};
@@ -162,10 +169,11 @@ export function parseWhamUsagePayload(payload: unknown): Omit<ProviderSnapshot, 
 
   const resetCredits = asRecord(root.rate_limit_reset_credits);
   const resetCreditsAvailable = resetCredits
-    ? asNumber(resetCredits.applicable_available_count) ?? asNumber(resetCredits.available_count)
+    ? (asNumber(resetCredits.applicable_available_count) ?? asNumber(resetCredits.available_count))
     : undefined;
 
-  const codeReview = windowFromJson(root.code_review_rate_limit) ??
+  const codeReview =
+    windowFromJson(root.code_review_rate_limit) ??
     windowFromJson(asRecord(root.code_review_rate_limit)?.primary_window);
 
   return {

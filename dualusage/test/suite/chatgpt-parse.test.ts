@@ -6,7 +6,12 @@ import {
   parseMonthlyUsageApi,
   parseWhamUsagePayload,
 } from "../../src/providers/chatgpt/parse-wham";
-import { formatProviderBody, formatProviderLine, shouldWarn, windowLabel } from "../../src/domain/format";
+import {
+  formatProviderBody,
+  formatProviderLine,
+  shouldWarn,
+  windowLabel,
+} from "../../src/domain/format";
 import { ProviderSnapshot } from "../../src/domain/types";
 import { readCodexAuth } from "../../src/providers/chatgpt/auth";
 import * as os from "os";

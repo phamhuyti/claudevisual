@@ -1,10 +1,14 @@
-// Minimal vscode stub so unit tests can import modules that pull in log.ts.
+// Minimal vscode stub so unit tests can import modules that pull in log.ts / orchestrator.
 module.exports = {
   window: {
     createOutputChannel: () => ({
       appendLine: () => undefined,
       dispose: () => undefined,
     }),
+    showWarningMessage: async () => undefined,
+    showInformationMessage: async () => undefined,
+    onDidChangeWindowState: () => ({ dispose: () => undefined }),
+    state: { focused: true },
   },
   workspace: {
     getConfiguration: () => ({
@@ -43,4 +47,5 @@ module.exports = {
       this._listeners = [];
     }
   },
+  Disposable: { from: (...items) => ({ dispose: () => items.forEach((d) => d.dispose?.()) }) },
 };

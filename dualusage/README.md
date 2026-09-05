@@ -9,11 +9,11 @@ Claude Code, the ChatGPT (`openai.chatgpt`) extension, or Cursor itself.
 
 Install and sign in to at least one companion:
 
-| Provider | Sign-in |
-| --- | --- |
-| Claude | [Claude Code](https://claude.com/product/claude-code) CLI signed in (`claude` on PATH) |
-| ChatGPT | [ChatGPT VS Code extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) — **Sign in with ChatGPT** (not API key only) |
-| Cursor | [Cursor](https://cursor.com) desktop signed in (reads local `state.vscdb`) |
+| Provider | Sign-in                                                                                                                                       |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude   | [Claude Code](https://claude.com/product/claude-code) CLI signed in (`claude` on PATH)                                                        |
+| ChatGPT  | [ChatGPT VS Code extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) — **Sign in with ChatGPT** (not API key only) |
+| Cursor   | [Cursor](https://cursor.com) desktop signed in (reads local `state.vscdb`)                                                                    |
 
 Credentials are read locally only:
 
@@ -39,19 +39,19 @@ it does not write tokens back to `state.vscdb`.
 
 ## Settings
 
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `dualusage.providers.claude.enabled` | `true` | Show Claude |
-| `dualusage.providers.chatgpt.enabled` | `true` | Show ChatGPT |
-| `dualusage.providers.cursor.enabled` | `true` | Show Cursor |
-| `dualusage.pollIntervalMinutes` | `1` | Refresh while window focused (minutes) |
-| `dualusage.warnPercent` | `90` | Warning threshold for windows / monthly |
-| `dualusage.creditsWarnBalance` | `1` | Warn when flexible / on-demand credits &lt; this USD |
-| `dualusage.claudePath` | `""` | Optional `claude` binary path |
-| `dualusage.codexHome` | `""` | Optional Codex home |
-| `dualusage.cursorDataPath` | `""` | Optional Cursor data root or `state.vscdb` |
-| `dualusage.chatgpt.source` | `auto` | `auto` / `api` / `rollout` |
-| `dualusage.statusBar.style` | `split` | `split` (per provider) or `compact` |
+| Setting                               | Default | Purpose                                              |
+| ------------------------------------- | ------- | ---------------------------------------------------- |
+| `dualusage.providers.claude.enabled`  | `true`  | Show Claude                                          |
+| `dualusage.providers.chatgpt.enabled` | `true`  | Show ChatGPT                                         |
+| `dualusage.providers.cursor.enabled`  | `true`  | Show Cursor                                          |
+| `dualusage.pollIntervalMinutes`       | `1`     | Refresh while window focused (minutes)               |
+| `dualusage.warnPercent`               | `90`    | Warning threshold for windows / monthly              |
+| `dualusage.creditsWarnBalance`        | `1`     | Warn when flexible / on-demand credits &lt; this USD |
+| `dualusage.claudePath`                | `""`    | Optional `claude` binary path                        |
+| `dualusage.codexHome`                 | `""`    | Optional Codex home                                  |
+| `dualusage.cursorDataPath`            | `""`    | Optional Cursor data root or `state.vscdb`           |
+| `dualusage.chatgpt.source`            | `auto`  | `auto` / `api` / `rollout`                           |
+| `dualusage.statusBar.style`           | `split` | `split` (per provider) or `compact`                  |
 
 ## Install from a release
 
@@ -112,3 +112,20 @@ Release is created.
 ## License
 
 MIT
+
+## Screenshots
+
+Light and dark themes follow VS Code tokens. Open the DualUsage activity-bar view after install.
+
+<p align="center">
+  <img src="docs/images/sidebar-dark.png" alt="DualUsage sidebar (dark)" width="280" />
+  &nbsp;
+  <img src="docs/images/sidebar-light.png" alt="DualUsage sidebar (light)" width="280" />
+</p>
+
+| Theme | What to check |
+| --- | --- |
+| Dark+ | Provider cards, ring gauge, warn colors |
+| Light+ | Same layout with readable muted text |
+| High Contrast | Focus rings and status chips remain visible |
+

@@ -1,23 +1,54 @@
 import * as vscode from "vscode";
-import { AppState, ProviderId, ProviderSnapshot } from "../domain/types";
+import { AppState, HistoryState, ProviderId, ProviderSnapshot } from "../domain/types";
 import { logDebug, logError } from "../log";
 import { createAdapters } from "../providers/registry";
-import { FetchContext } from "../providers/types";
-import { readSettings } from "./settings";
+import { FetchContext, ProviderAdapter } from "../providers/types";
+import { DualUsageSettings } from "../domain/types";
+import { UsagePersistence } from "./persistence";
+import { pollIntervalMinutesFor, readSettings } from "./settings";
 
 const PROVIDER_IDS: ProviderId[] = ["claude", "chatgpt", "cursor"];
+
+export type AdapterFactory = (settings: DualUsageSettings) => ProviderAdapter[];
+
+export interface OrchestratorOptions {
+  persistence?: UsagePersistence;
+  /** Injectable clock for tests (ms). */
+  now?: () => number;
+  /** Override adapter creation (tests). */
+  createAdapters?: AdapterFactory;
+}
 
 export class UsageOrchestrator implements vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<AppState>();
   readonly onDidChange = this.emitter.event;
 
+  private readonly historyEmitter = new vscode.EventEmitter<HistoryState>();
+  readonly onDidChangeHistory = this.historyEmitter.event;
+
   private state: AppState = {};
+  private history: HistoryState = { points: [] };
   private timer: ReturnType<typeof setInterval> | undefined;
   private inFlight = false;
+  private pendingForce: { only?: ProviderId } | undefined;
+  private abort: AbortController | undefined;
   private disposed = false;
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly persistence?: UsagePersistence;
+  private readonly now: () => number;
+  private readonly createAdapters: AdapterFactory;
 
-  constructor() {
+  constructor(opts: OrchestratorOptions = {}) {
+    this.persistence = opts.persistence;
+    this.now = opts.now ?? Date.now;
+    this.createAdapters = opts.createAdapters ?? createAdapters;
+    if (this.persistence) {
+      const cached = this.persistence.loadState();
+      if (cached && Object.keys(cached).length > 0) {
+        this.state = this.withStaleFlags(cached);
+      }
+      this.history = this.persistence.loadHistory();
+    }
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("dualusage")) {
@@ -25,7 +56,7 @@ export class UsageOrchestrator implements vscode.Disposable {
         }
       }),
       vscode.window.onDidChangeWindowState((s) => {
-        if (s.focused && this.isStale()) {
+        if (s.focused) {
           void this.poll(false);
         }
       })
@@ -34,6 +65,10 @@ export class UsageOrchestrator implements vscode.Disposable {
 
   get current(): AppState {
     return this.state;
+  }
+
+  get currentHistory(): HistoryState {
+    return this.history;
   }
 
   start(): void {
@@ -48,17 +83,21 @@ export class UsageOrchestrator implements vscode.Disposable {
     void this.poll(true, id);
   }
 
-  private intervalMs(): number {
-    return readSettings().pollIntervalMinutes * 60_000;
+  /** Seed state without polling (tests / restore). */
+  hydrate(state: AppState): void {
+    this.publish(this.withStaleFlags(state));
   }
 
-  private isStale(): boolean {
-    const snaps = PROVIDER_IDS.map((id) => this.state[id]).filter(Boolean) as ProviderSnapshot[];
-    if (snaps.length === 0) {
-      return true;
-    }
-    const newest = Math.max(...snaps.map((s) => s.capturedAt || 0));
-    return Date.now() - newest > this.intervalMs();
+  private tickMs(): number {
+    const settings = readSettings();
+    const mins = [
+      settings.pollIntervalMinutes,
+      settings.claudePollIntervalMinutes,
+      settings.chatgptPollIntervalMinutes,
+      settings.cursorPollIntervalMinutes,
+    ].filter((m) => m > 0);
+    const smallest = Math.min(...mins);
+    return Math.max(30_000, smallest * 60_000);
   }
 
   private enabledMap(): Record<ProviderId, boolean> {
@@ -70,7 +109,50 @@ export class UsageOrchestrator implements vscode.Disposable {
     };
   }
 
+  private withStaleFlags(state: AppState): AppState {
+    const next: AppState = {};
+    const now = this.now();
+    for (const id of PROVIDER_IDS) {
+      const snap = state[id];
+      if (!snap) {
+        continue;
+      }
+      const intervalMs = pollIntervalMinutesFor(id) * 60_000;
+      const age = now - (snap.capturedAt || 0);
+      next[id] = {
+        ...snap,
+        stale: snap.status !== "disabled" && age > intervalMs * 2,
+      };
+    }
+    return next;
+  }
+
+  private dueProviders(force: boolean, only?: ProviderId): ProviderId[] {
+    const enabled = this.enabledMap();
+    const now = this.now();
+    return PROVIDER_IDS.filter((id) => {
+      if (only && id !== only) {
+        return false;
+      }
+      if (!enabled[id]) {
+        return false;
+      }
+      if (force || only) {
+        return true;
+      }
+      const snap = this.state[id];
+      if (!snap || snap.status === "polling" || !snap.capturedAt) {
+        return true;
+      }
+      const intervalMs = pollIntervalMinutesFor(id) * 60_000;
+      return now - snap.capturedAt >= intervalMs;
+    });
+  }
+
   private restart(): void {
+    this.abort?.abort();
+    this.abort = undefined;
+    this.pendingForce = undefined;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
@@ -83,31 +165,44 @@ export class UsageOrchestrator implements vscode.Disposable {
     for (const id of PROVIDER_IDS) {
       if (!enabled[id]) {
         next[id] = disabledSnap(id);
-      } else if (this.state[id]?.status !== "disabled") {
-        next[id] = this.state[id] ?? pollingSnap(id);
+      } else if (this.state[id]?.status !== "disabled" && this.state[id]) {
+        next[id] = { ...this.state[id]!, cached: this.state[id]!.cached };
       } else {
         next[id] = pollingSnap(id);
       }
     }
-    this.publish(next);
+    this.publish(this.withStaleFlags(next));
 
-    // Load usage immediately on activate / settings change — do not wait.
     void this.poll(true);
     this.timer = setInterval(() => {
       if (vscode.window.state.focused) {
         void this.poll(false);
       }
-    }, this.intervalMs());
+    }, this.tickMs());
   }
 
   private async poll(force: boolean, only?: ProviderId): Promise<void> {
-    if (this.disposed || this.inFlight) {
+    if (this.disposed) {
       return;
     }
-    if (!force && !this.isStale() && !only) {
+    if (this.inFlight) {
+      if (force) {
+        this.pendingForce = { only };
+      }
       return;
     }
+
+    const due = this.dueProviders(force, only);
+    if (due.length === 0) {
+      this.publish(this.withStaleFlags(this.state));
+      return;
+    }
+
     this.inFlight = true;
+    this.abort?.abort();
+    this.abort = new AbortController();
+    const signal = this.abort.signal;
+
     const settings = readSettings();
     const enabled = this.enabledMap();
     const ctx: FetchContext = {
@@ -115,30 +210,43 @@ export class UsageOrchestrator implements vscode.Disposable {
       codexHome: settings.codexHome,
       cursorDataPath: settings.cursorDataPath,
       chatgptSource: settings.chatgptSource,
+      signal,
     };
 
-    const adapters = createAdapters(settings).filter((a) => !only || a.id === only);
+    const adapters = this.createAdapters(settings).filter((a) => due.includes(a.id));
     logDebug(`orchestrator: polling ${adapters.map((a) => a.id).join(",") || "(none)"}`);
 
-    // Mark targeted providers as polling without wiping prior data.
     const pending: AppState = { ...this.state };
     for (const a of adapters) {
       const prev = pending[a.id];
       pending[a.id] = {
         ...(prev ?? pollingSnap(a.id)),
-        status: prev?.status === "ok" ? "ok" : "polling",
+        status:
+          prev?.status === "ok" || prev?.cached
+            ? prev.status === "ok"
+              ? "ok"
+              : prev.status
+            : "polling",
         provider: a.id,
         windows: prev?.windows ?? [],
         source: prev?.source ?? defaultSource(a.id),
-        capturedAt: prev?.capturedAt ?? Date.now(),
+        capturedAt: prev?.capturedAt ?? this.now(),
+        cached: prev?.cached,
       };
+      // Keep showing cached/ok numbers while refreshing; only mark polling when empty.
+      if (
+        !prev ||
+        (prev.status !== "ok" && !prev.windows.length && !prev.credits && !prev.monthly)
+      ) {
+        pending[a.id]!.status = "polling";
+      }
     }
     for (const id of PROVIDER_IDS) {
       if (!enabled[id]) {
         pending[id] = disabledSnap(id);
       }
     }
-    this.publish(pending);
+    this.publish(this.withStaleFlags(pending));
 
     try {
       const results = await Promise.all(
@@ -146,18 +254,25 @@ export class UsageOrchestrator implements vscode.Disposable {
           try {
             return await adapter.fetch(ctx);
           } catch (err) {
+            if (signal.aborted) {
+              return prevOrError(adapter.id, this.state[adapter.id], "aborted");
+            }
             logError(`${adapter.id} adapter threw`, err);
             return {
               provider: adapter.id,
               windows: [],
               source: defaultSource(adapter.id),
-              capturedAt: Date.now(),
+              capturedAt: this.now(),
               status: "error" as const,
               error: err instanceof Error ? err.message : String(err),
             };
           }
         })
       );
+
+      if (this.disposed || signal.aborted) {
+        return;
+      }
 
       const next: AppState = { ...this.state };
       for (const id of PROVIDER_IDS) {
@@ -167,23 +282,32 @@ export class UsageOrchestrator implements vscode.Disposable {
       }
       for (const snap of results) {
         const prev = this.state[snap.provider];
-        // Keep prior ok data on transient error with empty payload.
         if (
           snap.status === "error" &&
           snap.windows.length === 0 &&
           !snap.credits &&
           !snap.monthly &&
           prev &&
-          prev.status === "ok"
+          (prev.status === "ok" || prev.cached)
         ) {
-          next[snap.provider] = { ...prev, error: snap.error };
+          next[snap.provider] = { ...prev, error: snap.error, cached: prev.cached };
         } else {
-          next[snap.provider] = snap;
+          next[snap.provider] = { ...snap, cached: false, stale: false };
         }
       }
-      this.publish(next);
+      this.publish(this.withStaleFlags(next));
+      if (this.persistence) {
+        this.persistence.saveState(next);
+        this.history = this.persistence.recordHistory(next, this.now());
+        this.historyEmitter.fire(this.history);
+      }
     } finally {
       this.inFlight = false;
+      const queued = this.pendingForce;
+      this.pendingForce = undefined;
+      if (!this.disposed && queued) {
+        void this.poll(true, queued.only);
+      }
     }
   }
 
@@ -194,12 +318,16 @@ export class UsageOrchestrator implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
+    this.abort?.abort();
+    this.abort = undefined;
+    this.pendingForce = undefined;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
     }
     this.disposables.forEach((d) => d.dispose());
     this.emitter.dispose();
+    this.historyEmitter.dispose();
   }
 }
 
@@ -224,5 +352,23 @@ function pollingSnap(provider: ProviderId): ProviderSnapshot {
     source: defaultSource(provider),
     capturedAt: Date.now(),
     status: "polling",
+  };
+}
+
+function prevOrError(
+  id: ProviderId,
+  prev: ProviderSnapshot | undefined,
+  error: string
+): ProviderSnapshot {
+  if (prev && (prev.status === "ok" || prev.cached)) {
+    return { ...prev, error };
+  }
+  return {
+    provider: id,
+    windows: [],
+    source: defaultSource(id),
+    capturedAt: Date.now(),
+    status: "error",
+    error,
   };
 }

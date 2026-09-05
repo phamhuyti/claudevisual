@@ -1,0 +1,12 @@
+{
+  "extension.displayName": "DualUsage",
+  "extension.description": "Account usage for Claude, ChatGPT, and Cursor in the status bar and sidebar",
+  "command.refreshAll": "DualUsage: Refresh All",
+  "command.openSettings": "DualUsage: Open Settings",
+  "command.toggleProvider": "DualUsage: Toggle Providers",
+  "command.openUsagePage": "DualUsage: Open Usage Page",
+  "command.focusSidebar": "DualUsage: Focus Sidebar",
+  "view.sidebar.name": "Account usage",
+  "walkthrough.title": "Get started with DualUsage",
+  "walkthrough.description": "Show Claude, ChatGPT, and Cursor account usage in VS Code."
+}

@@ -8,7 +8,9 @@ interface RolloutSnapshot {
 }
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : undefined;
 }
 
 function asNumber(v: unknown): number | undefined {
@@ -18,7 +20,10 @@ function asNumber(v: unknown): number | undefined {
   return undefined;
 }
 
-function windowFromRateLimits(rl: Record<string, unknown>, which: "primary" | "secondary"): RateWindow | undefined {
+function windowFromRateLimits(
+  rl: Record<string, unknown>,
+  which: "primary" | "secondary"
+): RateWindow | undefined {
   const node = asRecord(rl[which]) ?? asRecord(rl[`${which}_window`]);
   if (!node) {
     return undefined;

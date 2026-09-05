@@ -171,3 +171,118 @@ export function formatResets(w: RateWindow): string {
     return "—";
   }
 }
+
+export type Severity = "ok" | "warn" | "crit";
+
+/** Map a used% against warnPercent into ok / warn / crit. */
+export function severityForPercent(usedPercent: number, warnPercent: number): Severity {
+  if (usedPercent >= 100 || usedPercent >= warnPercent) {
+    return "crit";
+  }
+  if (usedPercent >= Math.max(0, warnPercent - 15)) {
+    return "warn";
+  }
+  return "ok";
+}
+
+/**
+ * Relative countdown from a unix-seconds reset timestamp.
+ * Returns e.g. "2h 14m", "45m", "just now", or "—" when unknown.
+ */
+export function formatCountdown(resetsAtSeconds: number | undefined, nowMs = Date.now()): string {
+  if (resetsAtSeconds === undefined || !Number.isFinite(resetsAtSeconds)) {
+    return "—";
+  }
+  const ms = resetsAtSeconds * 1000 - nowMs;
+  if (ms <= 0) {
+    return "now";
+  }
+  const totalMin = Math.round(ms / 60_000);
+  if (totalMin < 1) {
+    return "<1m";
+  }
+  if (totalMin < 60) {
+    return `${totalMin}m`;
+  }
+  const days = Math.floor(totalMin / (60 * 24));
+  const hours = Math.floor((totalMin - days * 60 * 24) / 60);
+  const mins = totalMin % 60;
+  if (days > 0) {
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  }
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+/**
+ * Pace marker position (0–100): how far through the rolling window we are,
+ * derived from resetsAt + windowSeconds. Undefined when inputs are incomplete.
+ */
+export function pacePercent(
+  windowSeconds: number | undefined,
+  resetsAtSeconds: number | undefined,
+  nowMs = Date.now()
+): number | undefined {
+  if (
+    windowSeconds === undefined ||
+    resetsAtSeconds === undefined ||
+    !Number.isFinite(windowSeconds) ||
+    windowSeconds <= 0 ||
+    !Number.isFinite(resetsAtSeconds)
+  ) {
+    return undefined;
+  }
+  const elapsed = windowSeconds - (resetsAtSeconds * 1000 - nowMs) / 1000;
+  const pct = (elapsed / windowSeconds) * 100;
+  return Math.min(100, Math.max(0, pct));
+}
+
+/** Unicode meter for tooltips, e.g. ▰▰▰▰▰▱▱▱▱▱ 52%. */
+export function unicodeBar(usedPercent: number, width = 10): string {
+  const clamped = Math.min(100, Math.max(0, usedPercent));
+  const filled = Math.round((clamped / 100) * width);
+  return `${"▰".repeat(filled)}${"▱".repeat(width - filled)} ${Math.round(clamped)}%`;
+}
+
+export function isLimitHit(snap: ProviderSnapshot): boolean {
+  return !!(
+    snap.limitReached ||
+    snap.spendControlReached ||
+    snap.credits?.overageLimitReached ||
+    snap.windows.some((w) => w.usedPercent >= 100) ||
+    (snap.monthly && snap.monthly.usedPercent >= 100)
+  );
+}
+
+/** Worst used% across windows + monthly, for collapsed glance rows. */
+export function worstUsedPercent(snap: ProviderSnapshot): number | undefined {
+  let worst: number | undefined;
+  for (const w of snap.windows) {
+    if (worst === undefined || w.usedPercent > worst) {
+      worst = w.usedPercent;
+    }
+  }
+  if (snap.monthly && (worst === undefined || snap.monthly.usedPercent > worst)) {
+    worst = snap.monthly.usedPercent;
+  }
+  if (snap.codeReview && (worst === undefined || snap.codeReview.usedPercent > worst)) {
+    worst = snap.codeReview.usedPercent;
+  }
+  return worst;
+}
+
+/** Soonest resetsAt among windows/monthly, for collapsed glance countdown. */
+export function soonestResetsAt(snap: ProviderSnapshot): number | undefined {
+  let soonest: number | undefined;
+  for (const w of snap.windows) {
+    if (w.resetsAt !== undefined && (soonest === undefined || w.resetsAt < soonest)) {
+      soonest = w.resetsAt;
+    }
+  }
+  if (
+    snap.monthly?.resetsAt !== undefined &&
+    (soonest === undefined || snap.monthly.resetsAt < soonest)
+  ) {
+    soonest = snap.monthly.resetsAt;
+  }
+  return soonest;
+}

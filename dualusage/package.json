@@ -1,8 +1,8 @@
 {
   "name": "dualusage",
-  "displayName": "DualUsage",
-  "description": "Account usage limits for Claude, ChatGPT, and Cursor in the VS Code status bar and sidebar",
-  "version": "0.2.0",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "0.4.0",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -18,6 +18,7 @@
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
   "keywords": [
@@ -37,7 +38,8 @@
     "commands": [
       {
         "command": "dualusage.refreshAll",
-        "title": "DualUsage: Refresh All"
+        "title": "%command.refreshAll%",
+        "icon": "$(refresh)"
       },
       {
         "command": "dualusage.refreshClaude",
@@ -50,6 +52,23 @@
       {
         "command": "dualusage.refreshCursor",
         "title": "DualUsage: Refresh Cursor"
+      },
+      {
+        "command": "dualusage.openSettings",
+        "title": "%command.openSettings%",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "dualusage.focusSidebar",
+        "title": "%command.focusSidebar%"
+      },
+      {
+        "command": "dualusage.toggleProvider",
+        "title": "%command.toggleProvider%"
+      },
+      {
+        "command": "dualusage.openUsagePage",
+        "title": "%command.openUsagePage%"
       }
     ],
     "viewsContainers": {
@@ -66,7 +85,7 @@
         {
           "type": "webview",
           "id": "dualusage.sidebar",
-          "name": "Account usage"
+          "name": "%view.sidebar.name%"
         }
       ]
     },
@@ -124,7 +143,11 @@
         },
         "dualusage.chatgpt.source": {
           "type": "string",
-          "enum": ["auto", "api", "rollout"],
+          "enum": [
+            "auto",
+            "api",
+            "rollout"
+          ],
           "default": "auto",
           "enumDescriptions": [
             "Try the live usage API, then fall back to local rollout files.",
@@ -135,37 +158,238 @@
         },
         "dualusage.statusBar.style": {
           "type": "string",
-          "enum": ["split", "compact"],
+          "enum": [
+            "split",
+            "compact",
+            "ultra"
+          ],
           "default": "split",
           "enumDescriptions": [
             "One status-bar item per enabled provider.",
-            "Single combined status-bar item."
+            "Single combined status-bar item.",
+            "Ultra-compact single item (short provider labels)."
           ],
           "description": "How to show providers on the status bar."
+        },
+        "dualusage.statusBar.showWindows": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include rate-window percentages on the status bar."
+        },
+        "dualusage.statusBar.showCredits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include credits / on-demand balance on the status bar."
+        },
+        "dualusage.statusBar.showMonthly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include monthly / plan spend on the status bar."
+        },
+        "dualusage.statusBar.clickAction": {
+          "type": "string",
+          "enum": [
+            "refresh",
+            "openSidebar",
+            "openSettings"
+          ],
+          "default": "refresh",
+          "enumDescriptions": [
+            "Refresh the clicked provider (or all in compact mode).",
+            "Focus the DualUsage sidebar.",
+            "Open DualUsage settings."
+          ],
+          "description": "What happens when a DualUsage status-bar item is clicked."
+        },
+        "dualusage.notifications.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a toast once each time usage crosses a warn threshold."
+        },
+        "dualusage.notifications.percent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Toast threshold percent (0 = use dualusage.warnPercent)."
         },
         "dualusage.debug": {
           "type": "boolean",
           "default": false,
           "description": "Log verbose DualUsage diagnostics (never logs tokens)."
+        },
+        "dualusage.providers.order": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "chatgpt",
+              "cursor"
+            ]
+          },
+          "default": [
+            "claude",
+            "chatgpt",
+            "cursor"
+          ],
+          "description": "Order of provider cards in the DualUsage sidebar."
+        },
+        "dualusage.providers.claude.pollIntervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Claude poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
+        },
+        "dualusage.providers.chatgpt.pollIntervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "ChatGPT poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
+        },
+        "dualusage.providers.cursor.pollIntervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Cursor poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
+        },
+        "dualusage.providers.claude.warnPercent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Claude warn percent (0 = use dualusage.warnPercent)."
+        },
+        "dualusage.providers.chatgpt.warnPercent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "ChatGPT warn percent (0 = use dualusage.warnPercent)."
+        },
+        "dualusage.providers.cursor.warnPercent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Cursor warn percent (0 = use dualusage.warnPercent)."
         }
       }
-    }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "dualusage.refreshAll",
+          "when": "view == dualusage.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dualusage.openSettings",
+          "when": "view == dualusage.sidebar",
+          "group": "navigation@2"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "dualusage.toggleProvider",
+          "when": "webviewId == 'dualusage.sidebar'",
+          "group": "dualusage@1"
+        },
+        {
+          "command": "dualusage.openUsagePage",
+          "when": "webviewId == 'dualusage.sidebar' && webviewSection == 'providerCard'",
+          "group": "dualusage@2"
+        },
+        {
+          "command": "dualusage.openSettings",
+          "when": "webviewId == 'dualusage.sidebar'",
+          "group": "dualusage@3"
+        }
+      ]
+    },
+    "walkthroughs": [
+      {
+        "id": "dualusage.onboarding",
+        "title": "%walkthrough.title%",
+        "description": "%walkthrough.description%",
+        "steps": [
+          {
+            "id": "openSidebar",
+            "title": "Open the DualUsage sidebar",
+            "description": "Click the DualUsage activity-bar icon (or run **DualUsage: Focus Sidebar**).",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "DualUsage"
+            },
+            "completionEvents": [
+              "onView:dualusage.sidebar"
+            ]
+          },
+          {
+            "id": "enableProviders",
+            "title": "Enable the providers you use",
+            "description": "Run **DualUsage: Toggle Providers** or open Settings and enable Claude / ChatGPT / Cursor.",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "Providers"
+            },
+            "completionEvents": [
+              "onCommand:dualusage.toggleProvider",
+              "onSettingChanged:dualusage.providers.claude.enabled"
+            ]
+          },
+          {
+            "id": "signIn",
+            "title": "Sign in to each provider",
+            "description": "Claude Code CLI, ChatGPT/Codex extension (ChatGPT login), and/or Cursor desktop \u2014 DualUsage only reads local auth.",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "Sign in"
+            }
+          },
+          {
+            "id": "thresholds",
+            "title": "Set warn thresholds",
+            "description": "Configure ``dualusage.warnPercent`` and optional notifications so you get a one-shot toast when usage crosses the line.",
+            "media": {
+              "icon": "resources/icon.svg",
+              "altText": "Thresholds"
+            },
+            "completionEvents": [
+              "onSettingChanged:dualusage.warnPercent"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "typecheck": "tsc -p . --noEmit",
+    "typecheck": "tsc -p . --noEmit && tsc -p tsconfig.webview.json --noEmit",
     "test": "npm run compile && mocha --config test/.mocharc.json",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies",
+    "lint": "eslint src test --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,css,json,md}\" \"test/**/*.{ts,json}\" \"package.json\" \"README.md\" \"CHANGELOG.md\"",
+    "format:check": "prettier --check \"src/**/*.{ts,css,json,md}\" \"test/**/*.{ts,json}\" \"package.json\" \"README.md\" \"CHANGELOG.md\""
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.13.10",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.2.2",
     "esbuild": "^0.25.0",
+    "eslint": "^10.10.0",
     "mocha": "^11.1.0",
+    "prettier": "^3.9.6",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.69.0"
+  },
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1b1f24",
+    "theme": "dark"
   }
 }

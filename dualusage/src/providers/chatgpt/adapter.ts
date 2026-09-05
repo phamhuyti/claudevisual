@@ -50,17 +50,24 @@ export class ChatgptAdapter implements ProviderAdapter {
 
     try {
       logDebug("chatgpt: fetching wham/usage");
-      const payload = await fetchWhamUsage(auth.accessToken!, auth.accountId!);
+      const payload = await fetchWhamUsage(auth.accessToken!, auth.accountId!, 10_000, ctx.signal);
       const parsed = parseWhamUsagePayload(payload);
       let monthly = parsed.monthly;
 
       if (needsMonthlyFallback(parsed.planType, monthly, parsed.credits)) {
         try {
           logDebug("chatgpt: fetching monthly-usage fallback");
-          const monthlyPayload = await fetchMonthlyUsage(auth.accessToken!, auth.accountId!);
+          const monthlyPayload = await fetchMonthlyUsage(
+            auth.accessToken!,
+            auth.accountId!,
+            10_000,
+            ctx.signal
+          );
           monthly = parseMonthlyUsageApi(monthlyPayload) ?? monthly;
         } catch (err) {
-          logDebug(`chatgpt monthly-usage failed: ${err instanceof Error ? err.message : String(err)}`);
+          logDebug(
+            `chatgpt monthly-usage failed: ${err instanceof Error ? err.message : String(err)}`
+          );
         }
       }
 

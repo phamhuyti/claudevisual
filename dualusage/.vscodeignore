@@ -8,3 +8,8 @@ esbuild.js
 node_modules/**
 .gitignore
 *.vsix
+tsconfig.webview.json
+eslint.config.mjs
+.prettierrc.json
+.prettierignore
+.editorconfig
