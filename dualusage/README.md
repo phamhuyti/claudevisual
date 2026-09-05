@@ -44,7 +44,7 @@ it does not write tokens back to `state.vscdb`.
 | `dualusage.providers.claude.enabled`  | `true`  | Show Claude                                          |
 | `dualusage.providers.chatgpt.enabled` | `true`  | Show ChatGPT                                         |
 | `dualusage.providers.cursor.enabled`  | `true`  | Show Cursor                                          |
-| `dualusage.pollIntervalMinutes`       | `1`     | Refresh while window focused (minutes)               |
+| `dualusage.pollIntervalSeconds`       | `60`    | Refresh while window focused (seconds, min 5)        |
 | `dualusage.warnPercent`               | `90`    | Warning threshold for windows / monthly              |
 | `dualusage.creditsWarnBalance`        | `1`     | Warn when flexible / on-demand credits &lt; this USD |
 | `dualusage.claudePath`                | `""`    | Optional `claude` binary path                        |

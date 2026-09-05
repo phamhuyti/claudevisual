@@ -29,7 +29,7 @@ interface WebviewSettings {
   creditsWarnBalance: number;
   warnPercentByProvider: Record<ProviderId, number>;
   providersOrder: ProviderId[];
-  pollIntervalMinutes: number;
+  pollIntervalSeconds: number;
   pollIntervalByProvider: Record<ProviderId, number>;
 }
 
@@ -46,8 +46,8 @@ let settings: WebviewSettings = {
   creditsWarnBalance: 1,
   warnPercentByProvider: { claude: 90, chatgpt: 90, cursor: 90 },
   providersOrder: [...DEFAULT_ORDER],
-  pollIntervalMinutes: 1,
-  pollIntervalByProvider: { claude: 1, chatgpt: 1, cursor: 1 },
+  pollIntervalSeconds: 60,
+  pollIntervalByProvider: { claude: 60, chatgpt: 60, cursor: 60 },
 };
 let state: AppState = {};
 let history: HistoryState = { points: [] };

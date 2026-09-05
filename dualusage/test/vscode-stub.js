@@ -13,6 +13,7 @@ module.exports = {
   workspace: {
     getConfiguration: () => ({
       get: (_key, def) => def,
+      inspect: () => undefined,
     }),
     onDidChangeConfiguration: () => ({ dispose: () => undefined }),
   },

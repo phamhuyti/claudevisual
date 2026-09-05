@@ -73,11 +73,11 @@ export interface DualUsageSettings {
   chatgptEnabled: boolean;
   cursorEnabled: boolean;
   providersOrder: ProviderId[];
-  pollIntervalMinutes: number;
-  /** 0 = use global pollIntervalMinutes. */
-  claudePollIntervalMinutes: number;
-  chatgptPollIntervalMinutes: number;
-  cursorPollIntervalMinutes: number;
+  pollIntervalSeconds: number;
+  /** 0 = use global pollIntervalSeconds. */
+  claudePollIntervalSeconds: number;
+  chatgptPollIntervalSeconds: number;
+  cursorPollIntervalSeconds: number;
   warnPercent: number;
   /** 0 = use global warnPercent. */
   claudeWarnPercent: number;

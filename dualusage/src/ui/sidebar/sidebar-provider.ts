@@ -11,7 +11,7 @@ export interface WebviewSettings {
   creditsWarnBalance: number;
   warnPercentByProvider: Record<ProviderId, number>;
   providersOrder: ProviderId[];
-  pollIntervalMinutes: number;
+  pollIntervalSeconds: number;
   pollIntervalByProvider: Record<ProviderId, number>;
 }
 
@@ -162,14 +162,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         cursor: warnPercentFor("cursor", s),
       },
       providersOrder: s.providersOrder,
-      pollIntervalMinutes: s.pollIntervalMinutes,
+      pollIntervalSeconds: s.pollIntervalSeconds,
       pollIntervalByProvider: {
         claude:
-          s.claudePollIntervalMinutes > 0 ? s.claudePollIntervalMinutes : s.pollIntervalMinutes,
+          s.claudePollIntervalSeconds > 0 ? s.claudePollIntervalSeconds : s.pollIntervalSeconds,
         chatgpt:
-          s.chatgptPollIntervalMinutes > 0 ? s.chatgptPollIntervalMinutes : s.pollIntervalMinutes,
+          s.chatgptPollIntervalSeconds > 0 ? s.chatgptPollIntervalSeconds : s.pollIntervalSeconds,
         cursor:
-          s.cursorPollIntervalMinutes > 0 ? s.cursorPollIntervalMinutes : s.pollIntervalMinutes,
+          s.cursorPollIntervalSeconds > 0 ? s.cursorPollIntervalSeconds : s.pollIntervalSeconds,
       },
     };
   }
