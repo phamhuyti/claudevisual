@@ -2,7 +2,7 @@
   "name": "dualusage",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -106,12 +106,6 @@
           "type": "boolean",
           "default": true,
           "description": "Show Cursor account usage (via local Cursor state.vscdb + Dashboard API)."
-        },
-        "dualusage.pollIntervalMinutes": {
-          "type": "number",
-          "default": 1,
-          "minimum": 1,
-          "description": "How often to refresh usage while the window is focused (minutes)."
         },
         "dualusage.warnPercent": {
           "type": "number",
@@ -235,24 +229,6 @@
           ],
           "description": "Order of provider cards in the DualUsage sidebar."
         },
-        "dualusage.providers.claude.pollIntervalMinutes": {
-          "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "description": "Claude poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
-        },
-        "dualusage.providers.chatgpt.pollIntervalMinutes": {
-          "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "description": "ChatGPT poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
-        },
-        "dualusage.providers.cursor.pollIntervalMinutes": {
-          "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "description": "Cursor poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
-        },
         "dualusage.providers.claude.warnPercent": {
           "type": "number",
           "default": 0,
@@ -273,6 +249,30 @@
           "minimum": 0,
           "maximum": 100,
           "description": "Cursor warn percent (0 = use dualusage.warnPercent)."
+        },
+        "dualusage.pollIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 5,
+          "description": "How often to refresh usage while the window is focused (seconds). Default 60 (= 1 minute). Minimum 5."
+        },
+        "dualusage.providers.claude.pollIntervalSeconds": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Claude poll interval in seconds (0 = use dualusage.pollIntervalSeconds)."
+        },
+        "dualusage.providers.chatgpt.pollIntervalSeconds": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "ChatGPT poll interval in seconds (0 = use dualusage.pollIntervalSeconds)."
+        },
+        "dualusage.providers.cursor.pollIntervalSeconds": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Cursor poll interval in seconds (0 = use dualusage.pollIntervalSeconds)."
         }
       }
     },

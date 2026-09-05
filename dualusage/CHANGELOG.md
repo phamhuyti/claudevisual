@@ -2,6 +2,12 @@
 
 All notable changes to DualUsage are documented in this file.
 
+## [0.4.2] — 2026-09-05
+
+### Changed
+
+- Poll / refresh interval is now configured in **seconds** (`dualusage.pollIntervalSeconds`, default `60`, minimum `5`) instead of minutes. Legacy `pollIntervalMinutes` values are still read and converted ×60.
+
 ## [0.4.1] — 2026-09-05
 
 ### Changed

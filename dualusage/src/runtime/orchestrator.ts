@@ -5,7 +5,7 @@ import { createAdapters } from "../providers/registry";
 import { FetchContext, ProviderAdapter } from "../providers/types";
 import { DualUsageSettings } from "../domain/types";
 import { UsagePersistence } from "./persistence";
-import { pollIntervalMinutesFor, readSettings } from "./settings";
+import { pollIntervalSecondsFor, readSettings } from "./settings";
 
 const PROVIDER_IDS: ProviderId[] = ["claude", "chatgpt", "cursor"];
 
@@ -90,14 +90,14 @@ export class UsageOrchestrator implements vscode.Disposable {
 
   private tickMs(): number {
     const settings = readSettings();
-    const mins = [
-      settings.pollIntervalMinutes,
-      settings.claudePollIntervalMinutes,
-      settings.chatgptPollIntervalMinutes,
-      settings.cursorPollIntervalMinutes,
-    ].filter((m) => m > 0);
-    const smallest = Math.min(...mins);
-    return Math.max(30_000, smallest * 60_000);
+    const seconds = [
+      settings.pollIntervalSeconds,
+      settings.claudePollIntervalSeconds,
+      settings.chatgptPollIntervalSeconds,
+      settings.cursorPollIntervalSeconds,
+    ].filter((s) => s > 0);
+    const smallest = Math.min(...seconds);
+    return Math.max(5_000, smallest * 1000);
   }
 
   private enabledMap(): Record<ProviderId, boolean> {
@@ -117,7 +117,7 @@ export class UsageOrchestrator implements vscode.Disposable {
       if (!snap) {
         continue;
       }
-      const intervalMs = pollIntervalMinutesFor(id) * 60_000;
+      const intervalMs = pollIntervalSecondsFor(id) * 1000;
       const age = now - (snap.capturedAt || 0);
       next[id] = {
         ...snap,
@@ -144,7 +144,7 @@ export class UsageOrchestrator implements vscode.Disposable {
       if (!snap || snap.status === "polling" || !snap.capturedAt) {
         return true;
       }
-      const intervalMs = pollIntervalMinutesFor(id) * 60_000;
+      const intervalMs = pollIntervalSecondsFor(id) * 1000;
       return now - snap.capturedAt >= intervalMs;
     });
   }

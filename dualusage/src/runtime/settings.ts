@@ -12,19 +12,10 @@ export function readSettings(): DualUsageSettings {
     chatgptEnabled: cfg.get<boolean>("providers.chatgpt.enabled", true),
     cursorEnabled: cfg.get<boolean>("providers.cursor.enabled", true),
     providersOrder: normalizeOrder(cfg.get<string[]>("providers.order", DEFAULT_ORDER)),
-    pollIntervalMinutes: Math.max(1, cfg.get<number>("pollIntervalMinutes", 1)),
-    claudePollIntervalMinutes: Math.max(
-      0,
-      cfg.get<number>("providers.claude.pollIntervalMinutes", 0)
-    ),
-    chatgptPollIntervalMinutes: Math.max(
-      0,
-      cfg.get<number>("providers.chatgpt.pollIntervalMinutes", 0)
-    ),
-    cursorPollIntervalMinutes: Math.max(
-      0,
-      cfg.get<number>("providers.cursor.pollIntervalMinutes", 0)
-    ),
+    pollIntervalSeconds: resolveGlobalPollSeconds(cfg),
+    claudePollIntervalSeconds: resolveProviderPollSeconds(cfg, "claude"),
+    chatgptPollIntervalSeconds: resolveProviderPollSeconds(cfg, "chatgpt"),
+    cursorPollIntervalSeconds: resolveProviderPollSeconds(cfg, "cursor"),
     warnPercent: cfg.get<number>("warnPercent", 90),
     claudeWarnPercent: Math.max(0, cfg.get<number>("providers.claude.warnPercent", 0)),
     chatgptWarnPercent: Math.max(0, cfg.get<number>("providers.chatgpt.warnPercent", 0)),
@@ -58,14 +49,62 @@ export function warnPercentFor(id: ProviderId, settings = readSettings()): numbe
   return per > 0 ? per : settings.warnPercent;
 }
 
-export function pollIntervalMinutesFor(id: ProviderId, settings = readSettings()): number {
+const DEFAULT_POLL_SECONDS = 60;
+const MIN_POLL_SECONDS = 5;
+
+export function pollIntervalSecondsFor(id: ProviderId, settings = readSettings()): number {
   const per =
     id === "claude"
-      ? settings.claudePollIntervalMinutes
+      ? settings.claudePollIntervalSeconds
       : id === "chatgpt"
-        ? settings.chatgptPollIntervalMinutes
-        : settings.cursorPollIntervalMinutes;
-  return per > 0 ? per : settings.pollIntervalMinutes;
+        ? settings.chatgptPollIntervalSeconds
+        : settings.cursorPollIntervalSeconds;
+  const seconds = per > 0 ? per : settings.pollIntervalSeconds;
+  return Math.max(MIN_POLL_SECONDS, seconds);
+}
+
+function isUserSet(cfg: vscode.WorkspaceConfiguration, key: string): boolean {
+  // Unit-test vscode stubs may omit `inspect`; treat as unset → use defaults / migration.
+  if (typeof cfg.inspect !== "function") {
+    return false;
+  }
+  const inspected = cfg.inspect(key);
+  if (!inspected) {
+    return false;
+  }
+  return (
+    inspected.globalValue !== undefined ||
+    inspected.workspaceValue !== undefined ||
+    inspected.workspaceFolderValue !== undefined
+  );
+}
+
+function resolveGlobalPollSeconds(cfg: vscode.WorkspaceConfiguration): number {
+  if (isUserSet(cfg, "pollIntervalSeconds")) {
+    return Math.max(MIN_POLL_SECONDS, cfg.get<number>("pollIntervalSeconds", DEFAULT_POLL_SECONDS));
+  }
+  if (isUserSet(cfg, "pollIntervalMinutes")) {
+    const minutes = Math.max(1, cfg.get<number>("pollIntervalMinutes", 1));
+    return Math.max(MIN_POLL_SECONDS, Math.round(minutes * 60));
+  }
+  return DEFAULT_POLL_SECONDS;
+}
+
+/** 0 = inherit global. Migrates legacy *.pollIntervalMinutes when seconds unset. */
+function resolveProviderPollSeconds(
+  cfg: vscode.WorkspaceConfiguration,
+  provider: "claude" | "chatgpt" | "cursor"
+): number {
+  const secKey = `providers.${provider}.pollIntervalSeconds`;
+  if (isUserSet(cfg, secKey)) {
+    return Math.max(0, cfg.get<number>(secKey, 0));
+  }
+  const minKey = `providers.${provider}.pollIntervalMinutes`;
+  if (isUserSet(cfg, minKey)) {
+    const minutes = Math.max(0, cfg.get<number>(minKey, 0));
+    return minutes > 0 ? Math.max(MIN_POLL_SECONDS, Math.round(minutes * 60)) : 0;
+  }
+  return 0;
 }
 
 function normalizeOrder(raw: string[] | undefined): ProviderId[] {
