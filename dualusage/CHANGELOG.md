@@ -2,6 +2,17 @@
 
 All notable changes to DualUsage are documented in this file.
 
+## [0.4.0] — 2026-09-05
+
+### Added
+
+- Persist last AppState in `globalState` so status bar / sidebar show cached numbers immediately on startup.
+- Usage history ring (≈1 sample / 5 minutes, ~48h) with sparkline in provider cards.
+- Stale / cached badges; per-provider `pollIntervalMinutes` and `warnPercent`; `providers.order`.
+- `dualusage.toggleProvider` QuickPick + webview context menu; deep links to each provider usage page.
+
+All notable changes to DualUsage are documented in this file.
+
 ## [0.3.0] — 2026-09-05
 
 ### Added

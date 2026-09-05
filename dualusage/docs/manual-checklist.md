@@ -30,3 +30,11 @@
 2. Three status items (split) or one compact line.
 3. Sidebar shows all enabled sections; refresh updates all.
 4. Disable one provider → that section/item disappears without breaking the others.
+
+## Persist / history / toggles
+
+1. Reload window with network offline → sidebar shows cached badges until live poll.
+2. After ~5+ minutes of usage, provider cards show a sparkline.
+3. Command Palette → DualUsage: Toggle Providers → disable one → card disappears.
+4. Right-click a provider card → Open Usage Page opens the provider billing/usage URL.
+5. Change `dualusage.providers.order` → card order updates after settings change.

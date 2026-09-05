@@ -10,6 +10,7 @@ import {
 } from "../../domain/format";
 import {
   AppState,
+  HistoryState,
   ProviderId,
   ProviderSnapshot,
   RateWindow,
@@ -25,6 +26,10 @@ declare function acquireVsCodeApi(): {
 interface WebviewSettings {
   warnPercent: number;
   creditsWarnBalance: number;
+  warnPercentByProvider: Record<ProviderId, number>;
+  providersOrder: ProviderId[];
+  pollIntervalMinutes: number;
+  pollIntervalByProvider: Record<ProviderId, number>;
 }
 
 interface Persisted {
@@ -33,24 +38,42 @@ interface Persisted {
 
 const vscode = acquireVsCodeApi();
 const root = document.getElementById("root")!;
-const ORDER: ProviderId[] = ["claude", "chatgpt", "cursor"];
+const DEFAULT_ORDER: ProviderId[] = ["claude", "chatgpt", "cursor"];
 
-let settings: WebviewSettings = { warnPercent: 90, creditsWarnBalance: 1 };
+let settings: WebviewSettings = {
+  warnPercent: 90,
+  creditsWarnBalance: 1,
+  warnPercentByProvider: { claude: 90, chatgpt: 90, cursor: 90 },
+  providersOrder: [...DEFAULT_ORDER],
+  pollIntervalMinutes: 1,
+  pollIntervalByProvider: { claude: 1, chatgpt: 1, cursor: 1 },
+};
 let state: AppState = {};
+let history: HistoryState = { points: [] };
 let persisted: Persisted = vscode.getState() ?? { collapsed: {} };
 let tick: number | undefined;
 
 window.addEventListener(
   "message",
-  (ev: MessageEvent<{ type: string; state?: AppState; settings?: WebviewSettings }>) => {
+  (
+    ev: MessageEvent<{
+      type: string;
+      state?: AppState;
+      settings?: WebviewSettings;
+      history?: HistoryState;
+    }>
+  ) => {
     if (ev.data?.settings) {
       settings = ev.data.settings;
+    }
+    if (ev.data?.history) {
+      history = ev.data.history;
     }
     if (ev.data?.type === "state" && ev.data.state) {
       state = ev.data.state;
       render();
       startTick();
-    } else if (ev.data?.type === "settings") {
+    } else if (ev.data?.type === "settings" || ev.data?.type === "history") {
       render();
     }
   }
@@ -76,6 +99,28 @@ function nameOf(id: ProviderId): string {
 
 function markOf(id: ProviderId): string {
   return id === "claude" ? "C" : id === "chatgpt" ? "G" : "Cu";
+}
+
+function providerOrder(): ProviderId[] {
+  const raw = settings.providersOrder?.length ? settings.providersOrder : DEFAULT_ORDER;
+  const seen = new Set<ProviderId>();
+  const out: ProviderId[] = [];
+  for (const id of raw) {
+    if ((id === "claude" || id === "chatgpt" || id === "cursor") && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  for (const id of DEFAULT_ORDER) {
+    if (!seen.has(id)) {
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+function warnAt(id: ProviderId): number {
+  return settings.warnPercentByProvider?.[id] ?? settings.warnPercent;
 }
 
 function statusInfo(status: SnapshotStatus): { label: string; cls: string } {
@@ -133,6 +178,30 @@ function cta(snap: ProviderSnapshot): { message: string; settings?: boolean } {
   return { message: snap.error || "Failed to load usage.", settings: true };
 }
 
+function sparkline(id: ProviderId): string {
+  const vals = history.points
+    .map((p) => p[id])
+    .filter((v): v is number => typeof v === "number");
+  if (vals.length < 2) {
+    return "";
+  }
+  const w = 72;
+  const h = 20;
+  const step = w / (vals.length - 1);
+  const pts = vals
+    .map((v, i) => {
+      const x = i * step;
+      const y = h - (Math.min(100, Math.max(0, v)) / 100) * h;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return `<div class="spark-wrap" title="Usage history (worst %)">
+    <svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">
+      <polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"></polyline>
+    </svg>
+  </div>`;
+}
+
 function ring(pct: number, sev: Severity): string {
   const r = 30;
   const c = 2 * Math.PI * r;
@@ -147,9 +216,9 @@ function ring(pct: number, sev: Severity): string {
   </div>`;
 }
 
-function meter(pct: number, warnAt: number, pace?: number, label = "Usage"): string {
+function meter(pct: number, warn: number, pace?: number, label = "Usage"): string {
   const clamped = Math.min(100, Math.max(0, pct));
-  const sev = severityForPercent(clamped, warnAt);
+  const sev = severityForPercent(clamped, warn);
   const paceEl =
     pace !== undefined
       ? `<span class="pace" style="left:${Math.min(100, Math.max(0, pace))}%" title="Even-pace marker"></span>`
@@ -159,9 +228,9 @@ function meter(pct: number, warnAt: number, pace?: number, label = "Usage"): str
   </div>`;
 }
 
-function windowBlock(w: RateWindow, warnAt: number, primary: boolean): string {
+function windowBlock(w: RateWindow, warn: number, primary: boolean): string {
   const label = windowLabel(w.windowSeconds);
-  const sev = severityForPercent(w.usedPercent, warnAt);
+  const sev = severityForPercent(w.usedPercent, warn);
   const cd = formatCountdown(w.resetsAt);
   const abs = formatResets(w);
   const pace = pacePercent(w.windowSeconds, w.resetsAt);
@@ -179,7 +248,7 @@ function windowBlock(w: RateWindow, warnAt: number, primary: boolean): string {
       <span class="left">${esc(label)}</span>
       <span class="right">${Math.round(w.usedPercent)}% · <span data-reset-at="${w.resetsAt ?? ""}" title="${esc(abs)}">${esc(cd)}</span></span>
     </div>
-    ${meter(w.usedPercent, warnAt, pace, `${label} usage`)}
+    ${meter(w.usedPercent, warn, pace, `${label} usage`)}
   </div>`;
 }
 
@@ -190,14 +259,21 @@ function card(snap: ProviderSnapshot | undefined): string {
   const id = snap.provider;
   const isCollapsed = collapsed(id);
   const chip = statusInfo(snap.status);
-  const warnAt = settings.warnPercent;
+  const warn = warnAt(id);
   const worst = worstUsedPercent(snap);
   const soonest = soonestResetsAt(snap);
-  const glanceSev = worst !== undefined ? severityForPercent(worst, warnAt) : "ok";
+  const glanceSev = worst !== undefined ? severityForPercent(worst, warn) : "ok";
   const plan = snap.planType ? `<span class="plan-badge">${esc(snap.planType)}</span>` : "";
   const email = snap.email
     ? `<div class="email" title="${esc(snap.email)}">${esc(snap.email)}</div>`
     : "";
+  const ctx = esc(
+    JSON.stringify({
+      webviewSection: "providerCard",
+      provider: id,
+      preventDefaultContextMenuItems: true,
+    })
+  );
 
   const hasData =
     snap.windows.length > 0 || !!snap.credits || !!snap.monthly || !!snap.codeReview;
@@ -207,7 +283,10 @@ function card(snap: ProviderSnapshot | undefined): string {
     const action = cta(snap);
     body = `<div class="cta-block">
       <div class="msg">${esc(action.message)}</div>
-      ${action.settings ? `<button type="button" class="btn primary" data-action="settings">Open Settings</button>` : ""}
+      <div class="cta-actions">
+        ${action.settings ? `<button type="button" class="btn primary" data-action="settings">Open Settings</button>` : ""}
+        <button type="button" class="btn" data-action="usage" data-provider="${id}">Open usage page</button>
+      </div>
     </div>`;
   } else {
     if (snap.limitReached || snap.spendControlReached || snap.credits?.overageLimitReached) {
@@ -225,15 +304,15 @@ function card(snap: ProviderSnapshot | undefined): string {
     }
 
     snap.windows.forEach((w, i) => {
-      body += windowBlock(w, warnAt, i === 0);
+      body += windowBlock(w, warn, i === 0);
     });
     if (snap.codeReview) {
-      body += windowBlock(snap.codeReview, warnAt, snap.windows.length === 0);
+      body += windowBlock(snap.codeReview, warn, snap.windows.length === 0);
     }
 
     if (snap.credits) {
       let text = snap.provider === "cursor" ? "On-demand: none" : "Credits: none";
-      let warn = false;
+      let creditWarn = false;
       if (snap.credits.unlimited) {
         text = snap.provider === "cursor" ? "On-demand: unlimited" : "Credits: unlimited";
       } else if (snap.credits.hasCredits && snap.credits.balance) {
@@ -241,10 +320,10 @@ function card(snap: ProviderSnapshot | undefined): string {
         text = snap.provider === "cursor" ? `On-demand: $${bal} left` : `Credits: $${bal} left`;
         const n = Number(bal.replace(/[^0-9.]/g, ""));
         if (Number.isFinite(n) && n < settings.creditsWarnBalance) {
-          warn = true;
+          creditWarn = true;
         }
       }
-      body += `<div class="stat-row"><span class="stat-chip${warn ? " warn" : ""}">${esc(text)}</span>`;
+      body += `<div class="stat-row"><span class="stat-chip${creditWarn ? " warn" : ""}">${esc(text)}</span>`;
       if (snap.resetCreditsAvailable !== undefined && snap.resetCreditsAvailable > 0) {
         body += `<span class="stat-chip">${snap.resetCreditsAvailable} reset credit${
           snap.resetCreditsAvailable === 1 ? "" : "s"
@@ -263,9 +342,11 @@ function card(snap: ProviderSnapshot | undefined): string {
           <span class="left">${label}</span>
           <span class="right">$${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)} · <span data-reset-at="${snap.monthly.resetsAt ?? ""}">${esc(formatCountdown(snap.monthly.resetsAt))}</span></span>
         </div>
-        ${meter(snap.monthly.usedPercent, warnAt, undefined, label)}
+        ${meter(snap.monthly.usedPercent, warn, undefined, label)}
       </div>`;
     }
+
+    body += sparkline(id);
 
     if (snap.promoMessage) {
       body += `<div class="card-foot">${esc(snap.promoMessage)}</div>`;
@@ -273,11 +354,17 @@ function card(snap: ProviderSnapshot | undefined): string {
 
     const ageSec = Math.round((Date.now() - snap.capturedAt) / 1000);
     const ageLabel = ageSec < 60 ? `${ageSec}s ago` : `${Math.round(ageSec / 60)}m ago`;
-    const stale = ageSec > 120 ? `<span class="badge stale">stale</span>` : "";
+    const badges: string[] = [`<span class="badge">${esc(snap.source)}</span>`];
+    if (snap.cached) {
+      badges.push(`<span class="badge cached">cached</span>`);
+    }
+    if (snap.stale) {
+      badges.push(`<span class="badge stale">stale</span>`);
+    }
     body += `<div class="card-foot">
-      <span class="badge">${esc(snap.source)}</span>
+      ${badges.join("")}
       <span data-captured-at="${snap.capturedAt}">${esc(ageLabel)}</span>
-      ${stale}
+      <button type="button" class="linkish" data-action="usage" data-provider="${id}">Usage page</button>
     </div>`;
   }
 
@@ -290,7 +377,7 @@ function card(snap: ProviderSnapshot | undefined): string {
       ? `<span class="reset" data-reset-at="${soonest}">reset ${esc(formatCountdown(soonest))}</span>`
       : "";
 
-  return `<section class="card${isCollapsed ? " collapsed" : ""}" data-provider="${id}">
+  return `<section class="card${isCollapsed ? " collapsed" : ""}" data-provider="${id}" data-vscode-context="${ctx}">
     <button type="button" class="card-head" aria-expanded="${isCollapsed ? "false" : "true"}" data-toggle="${id}">
       <span class="mono-mark" aria-hidden="true">${markOf(id)}</span>
       <span class="card-title">
@@ -307,7 +394,7 @@ function card(snap: ProviderSnapshot | undefined): string {
 
 function newestCaptured(): number | undefined {
   let newest: number | undefined;
-  for (const id of ORDER) {
+  for (const id of providerOrder()) {
     const snap = state[id];
     if (snap?.capturedAt && (newest === undefined || snap.capturedAt > newest)) {
       newest = snap.capturedAt;
@@ -317,9 +404,10 @@ function newestCaptured(): number | undefined {
 }
 
 function render(): void {
-  const cards = ORDER.map((id) => card(state[id])).filter(Boolean);
-  const enabled = ORDER.filter((id) => state[id] && state[id]!.status !== "disabled").length;
-  const polling = ORDER.some((id) => state[id]?.status === "polling");
+  const order = providerOrder();
+  const cards = order.map((id) => card(state[id])).filter(Boolean);
+  const enabled = order.filter((id) => state[id] && state[id]!.status !== "disabled").length;
+  const polling = order.some((id) => state[id]?.status === "polling");
   const captured = newestCaptured();
   const ageSec = captured !== undefined ? Math.round((Date.now() - captured) / 1000) : undefined;
   const ageLabel =
@@ -334,7 +422,10 @@ function render(): void {
     body = `<div class="empty">
       <div class="icon" aria-hidden="true">◐</div>
       <p>No providers enabled. Turn on Claude, ChatGPT, and/or Cursor in DualUsage settings.</p>
-      <button type="button" class="btn primary" data-action="settings">Open Settings</button>
+      <div class="cta-actions">
+        <button type="button" class="btn primary" data-action="settings">Open Settings</button>
+        <button type="button" class="btn" data-action="toggle">Toggle providers</button>
+      </div>
     </div>`;
   } else if (cards.length === 0) {
     body = `<div class="card skel"><div class="skel-bar" style="width:40%"></div><div class="skel-bar"></div><div class="skel-bar" style="width:70%"></div></div>
@@ -361,6 +452,17 @@ function render(): void {
   });
   root.querySelectorAll<HTMLButtonElement>('[data-action="settings"]').forEach((btn) => {
     btn.addEventListener("click", () => vscode.postMessage({ type: "openSettings" }));
+  });
+  root.querySelectorAll<HTMLButtonElement>('[data-action="toggle"]').forEach((btn) => {
+    btn.addEventListener("click", () => vscode.postMessage({ type: "toggleProvider" }));
+  });
+  root.querySelectorAll<HTMLElement>('[data-action="usage"]').forEach((el) => {
+    el.addEventListener("click", () =>
+      vscode.postMessage({
+        type: "openUsagePage",
+        provider: el.getAttribute("data-provider"),
+      })
+    );
   });
 }
 

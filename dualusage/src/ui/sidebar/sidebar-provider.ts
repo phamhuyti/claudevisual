@@ -1,30 +1,45 @@
 import * as crypto from "crypto";
 import * as path from "path";
 import * as vscode from "vscode";
-import { AppState } from "../../domain/types";
-import { readSettings } from "../../runtime/settings";
+import { AppState, HistoryState, ProviderId } from "../../domain/types";
+import { usagePageUrl } from "../../domain/usage-links";
+import { readSettings, warnPercentFor } from "../../runtime/settings";
 
 /** Settings the webview needs for meters / credits warn styling. */
 export interface WebviewSettings {
   warnPercent: number;
   creditsWarnBalance: number;
+  warnPercentByProvider: Record<ProviderId, number>;
+  providersOrder: ProviderId[];
+  pollIntervalMinutes: number;
+  pollIntervalByProvider: Record<ProviderId, number>;
 }
 
 type HostToWebview =
-  | { type: "state"; state: AppState; settings: WebviewSettings }
-  | { type: "settings"; settings: WebviewSettings };
+  | {
+      type: "state";
+      state: AppState;
+      settings: WebviewSettings;
+      history: HistoryState;
+    }
+  | { type: "settings"; settings: WebviewSettings }
+  | { type: "history"; history: HistoryState };
 
 type WebviewToHost =
   | { type: "ready" }
   | { type: "refresh" }
   | { type: "refreshProvider"; provider: string }
-  | { type: "openSettings" };
+  | { type: "openSettings" }
+  | { type: "openExternal"; url: string }
+  | { type: "toggleProvider" }
+  | { type: "openUsagePage"; provider: string };
 
 export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   static readonly viewId = "dualusage.sidebar";
 
   private view?: vscode.WebviewView;
   private state: AppState = {};
+  private history: HistoryState = { points: [] };
   private ready = false;
   private readonly extensionPath: string;
   private readonly disposables: vscode.Disposable[] = [];
@@ -74,10 +89,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         return;
       }
       if (msg.type === "openSettings") {
-        void vscode.commands.executeCommand(
-          "workbench.action.openSettings",
-          "@ext:phamhuyti.dualusage"
-        );
+        void vscode.commands.executeCommand("dualusage.openSettings");
+        return;
+      }
+      if (msg.type === "toggleProvider") {
+        void vscode.commands.executeCommand("dualusage.toggleProvider");
+        return;
+      }
+      if (msg.type === "openUsagePage" && typeof msg.provider === "string") {
+        const id = msg.provider as ProviderId;
+        if (id === "claude" || id === "chatgpt" || id === "cursor") {
+          void vscode.env.openExternal(vscode.Uri.parse(usagePageUrl(id)));
+        }
+        return;
+      }
+      if (msg.type === "openExternal" && typeof msg.url === "string") {
+        void vscode.env.openExternal(vscode.Uri.parse(msg.url));
       }
     });
     this.disposables.push(subscription);
@@ -95,11 +122,41 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
     this.post();
   }
 
+  setHistory(history: HistoryState): void {
+    this.history = history;
+    if (!this.view || !this.ready) {
+      return;
+    }
+    const message: HostToWebview = { type: "history", history };
+    void this.view.webview.postMessage(message);
+  }
+
   private webviewSettings(): WebviewSettings {
     const s = readSettings();
     return {
       warnPercent: s.warnPercent,
       creditsWarnBalance: s.creditsWarnBalance,
+      warnPercentByProvider: {
+        claude: warnPercentFor("claude", s),
+        chatgpt: warnPercentFor("chatgpt", s),
+        cursor: warnPercentFor("cursor", s),
+      },
+      providersOrder: s.providersOrder,
+      pollIntervalMinutes: s.pollIntervalMinutes,
+      pollIntervalByProvider: {
+        claude:
+          s.claudePollIntervalMinutes > 0
+            ? s.claudePollIntervalMinutes
+            : s.pollIntervalMinutes,
+        chatgpt:
+          s.chatgptPollIntervalMinutes > 0
+            ? s.chatgptPollIntervalMinutes
+            : s.pollIntervalMinutes,
+        cursor:
+          s.cursorPollIntervalMinutes > 0
+            ? s.cursorPollIntervalMinutes
+            : s.pollIntervalMinutes,
+      },
     };
   }
 
@@ -111,6 +168,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
       type: "state",
       state: this.state,
       settings: this.webviewSettings(),
+      history: this.history,
     };
     void this.view.webview.postMessage(message);
   }

@@ -512,3 +512,35 @@ body {
     animation: none;
   }
 }
+
+.spark-wrap {
+  margin-top: var(--sp-2);
+  color: var(--du-muted);
+  opacity: 0.85;
+}
+.spark {
+  display: block;
+}
+.badge.cached {
+  color: var(--du-info);
+  border-color: color-mix(in srgb, var(--du-info) 40%, transparent);
+}
+.cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--du-info);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+}
+.linkish:hover {
+  filter: brightness(1.1);
+}

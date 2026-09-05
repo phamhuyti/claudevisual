@@ -2,7 +2,7 @@
   "name": "dualusage",
   "displayName": "DualUsage",
   "description": "Account usage limits for Claude, ChatGPT, and Cursor in the VS Code status bar and sidebar",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -60,6 +60,14 @@
       {
         "command": "dualusage.focusSidebar",
         "title": "DualUsage: Focus Sidebar"
+      },
+      {
+        "command": "dualusage.toggleProvider",
+        "title": "DualUsage: Toggle Providers"
+      },
+      {
+        "command": "dualusage.openUsagePage",
+        "title": "DualUsage: Open Usage Page"
       }
     ],
     "viewsContainers": {
@@ -208,6 +216,62 @@
           "type": "boolean",
           "default": false,
           "description": "Log verbose DualUsage diagnostics (never logs tokens)."
+        },
+        "dualusage.providers.order": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "chatgpt",
+              "cursor"
+            ]
+          },
+          "default": [
+            "claude",
+            "chatgpt",
+            "cursor"
+          ],
+          "description": "Order of provider cards in the DualUsage sidebar."
+        },
+        "dualusage.providers.claude.pollIntervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Claude poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
+        },
+        "dualusage.providers.chatgpt.pollIntervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "ChatGPT poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
+        },
+        "dualusage.providers.cursor.pollIntervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Cursor poll interval in minutes (0 = use dualusage.pollIntervalMinutes)."
+        },
+        "dualusage.providers.claude.warnPercent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Claude warn percent (0 = use dualusage.warnPercent)."
+        },
+        "dualusage.providers.chatgpt.warnPercent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "ChatGPT warn percent (0 = use dualusage.warnPercent)."
+        },
+        "dualusage.providers.cursor.warnPercent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Cursor warn percent (0 = use dualusage.warnPercent)."
         }
       }
     },
@@ -222,6 +286,23 @@
           "command": "dualusage.openSettings",
           "when": "view == dualusage.sidebar",
           "group": "navigation@2"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "dualusage.toggleProvider",
+          "when": "webviewId == 'dualusage.sidebar'",
+          "group": "dualusage@1"
+        },
+        {
+          "command": "dualusage.openUsagePage",
+          "when": "webviewId == 'dualusage.sidebar' && webviewSection == 'providerCard'",
+          "group": "dualusage@2"
+        },
+        {
+          "command": "dualusage.openSettings",
+          "when": "webviewId == 'dualusage.sidebar'",
+          "group": "dualusage@3"
         }
       ]
     }
