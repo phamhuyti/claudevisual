@@ -2,16 +2,21 @@ import * as vscode from "vscode";
 import { AppState, HistoryState, ProviderId, ProviderSnapshot } from "../domain/types";
 import { logDebug, logError } from "../log";
 import { createAdapters } from "../providers/registry";
-import { FetchContext } from "../providers/types";
+import { FetchContext, ProviderAdapter } from "../providers/types";
+import { DualUsageSettings } from "../domain/types";
 import { UsagePersistence } from "./persistence";
 import { pollIntervalMinutesFor, readSettings } from "./settings";
 
 const PROVIDER_IDS: ProviderId[] = ["claude", "chatgpt", "cursor"];
 
+export type AdapterFactory = (settings: DualUsageSettings) => ProviderAdapter[];
+
 export interface OrchestratorOptions {
   persistence?: UsagePersistence;
   /** Injectable clock for tests (ms). */
   now?: () => number;
+  /** Override adapter creation (tests). */
+  createAdapters?: AdapterFactory;
 }
 
 export class UsageOrchestrator implements vscode.Disposable {
@@ -31,10 +36,12 @@ export class UsageOrchestrator implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly persistence?: UsagePersistence;
   private readonly now: () => number;
+  private readonly createAdapters: AdapterFactory;
 
   constructor(opts: OrchestratorOptions = {}) {
     this.persistence = opts.persistence;
     this.now = opts.now ?? Date.now;
+    this.createAdapters = opts.createAdapters ?? createAdapters;
     if (this.persistence) {
       const cached = this.persistence.loadState();
       if (cached && Object.keys(cached).length > 0) {
@@ -206,7 +213,7 @@ export class UsageOrchestrator implements vscode.Disposable {
       signal,
     };
 
-    const adapters = createAdapters(settings).filter((a) => due.includes(a.id));
+    const adapters = this.createAdapters(settings).filter((a) => due.includes(a.id));
     logDebug(`orchestrator: polling ${adapters.map((a) => a.id).join(",") || "(none)"}`);
 
     const pending: AppState = { ...this.state };

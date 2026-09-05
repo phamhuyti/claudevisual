@@ -115,10 +115,17 @@ MIT
 
 ## Screenshots
 
-Light and dark themes are supported via VS Code theme tokens. Open the DualUsage sidebar from the activity bar after install.
+Light and dark themes follow VS Code tokens. Open the DualUsage activity-bar view after install.
 
-| Theme         | What to check                               |
-| ------------- | ------------------------------------------- |
-| Dark+         | Provider cards, ring gauge, warn colors     |
-| Light+        | Same layout with readable muted text        |
+<p align="center">
+  <img src="docs/images/sidebar-dark.png" alt="DualUsage sidebar (dark)" width="280" />
+  &nbsp;
+  <img src="docs/images/sidebar-light.png" alt="DualUsage sidebar (light)" width="280" />
+</p>
+
+| Theme | What to check |
+| --- | --- |
+| Dark+ | Provider cards, ring gauge, warn colors |
+| Light+ | Same layout with readable muted text |
 | High Contrast | Focus rings and status chips remain visible |
+

@@ -461,6 +461,14 @@ function render(): void {
       })
     );
   });
+  root.querySelectorAll<HTMLElement>("[data-provider]").forEach((card) => {
+    card.addEventListener("contextmenu", () => {
+      const provider = card.getAttribute("data-provider");
+      if (provider) {
+        vscode.postMessage({ type: "contextProvider", provider });
+      }
+    });
+  });
 }
 
 function refreshRelativeTimes(): void {

@@ -32,7 +32,8 @@ type WebviewToHost =
   | { type: "openSettings" }
   | { type: "openExternal"; url: string }
   | { type: "toggleProvider" }
-  | { type: "openUsagePage"; provider: string };
+  | { type: "openUsagePage"; provider: string }
+  | { type: "contextProvider"; provider: string };
 
 export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   static readonly viewId = "dualusage.sidebar";
@@ -41,6 +42,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private state: AppState = {};
   private history: HistoryState = { points: [] };
   private ready = false;
+  private contextProvider?: ProviderId;
+  private viewDisposables: vscode.Disposable[] = [];
   private readonly extensionPath: string;
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -57,6 +60,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.disposeViewListeners();
     this.view = webviewView;
     this.ready = false;
     webviewView.webview.options = {
@@ -96,6 +100,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         void vscode.commands.executeCommand("dualusage.toggleProvider");
         return;
       }
+      if (msg.type === "contextProvider" && typeof msg.provider === "string") {
+        if (msg.provider === "claude" || msg.provider === "chatgpt" || msg.provider === "cursor") {
+          this.contextProvider = msg.provider;
+        }
+        return;
+      }
       if (msg.type === "openUsagePage" && typeof msg.provider === "string") {
         const id = msg.provider as ProviderId;
         if (id === "claude" || id === "chatgpt" || id === "cursor") {
@@ -107,14 +117,24 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         void vscode.env.openExternal(vscode.Uri.parse(msg.url));
       }
     });
-    this.disposables.push(subscription);
+    this.viewDisposables.push(subscription);
 
-    webviewView.onDidDispose(() => {
-      if (this.view === webviewView) {
-        this.view = undefined;
-        this.ready = false;
-      }
-    });
+    this.viewDisposables.push(
+      webviewView.onDidDispose(() => {
+        if (this.view === webviewView) {
+          this.view = undefined;
+          this.ready = false;
+        }
+        this.disposeViewListeners();
+      })
+    );
+  }
+
+  /** Consume the last provider set by a card contextmenu (for webview/context commands). */
+  takeContextProvider(): ProviderId | undefined {
+    const id = this.contextProvider;
+    this.contextProvider = undefined;
+    return id;
   }
 
   setState(state: AppState): void {
@@ -207,7 +227,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
 </html>`;
   }
 
+  private disposeViewListeners(): void {
+    this.viewDisposables.forEach((d) => d.dispose());
+    this.viewDisposables = [];
+  }
+
   dispose(): void {
+    this.disposeViewListeners();
     this.disposables.forEach((d) => d.dispose());
     this.view = undefined;
     this.ready = false;

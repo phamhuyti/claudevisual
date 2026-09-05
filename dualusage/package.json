@@ -1,7 +1,7 @@
 {
   "name": "dualusage",
-  "displayName": "DualUsage",
-  "description": "Account usage limits for Claude, ChatGPT, and Cursor in the VS Code status bar and sidebar",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
   "version": "0.4.0",
   "publisher": "phamhuyti",
   "license": "MIT",
@@ -38,7 +38,7 @@
     "commands": [
       {
         "command": "dualusage.refreshAll",
-        "title": "DualUsage: Refresh All",
+        "title": "%command.refreshAll%",
         "icon": "$(refresh)"
       },
       {
@@ -55,20 +55,20 @@
       },
       {
         "command": "dualusage.openSettings",
-        "title": "DualUsage: Open Settings",
+        "title": "%command.openSettings%",
         "icon": "$(gear)"
       },
       {
         "command": "dualusage.focusSidebar",
-        "title": "DualUsage: Focus Sidebar"
+        "title": "%command.focusSidebar%"
       },
       {
         "command": "dualusage.toggleProvider",
-        "title": "DualUsage: Toggle Providers"
+        "title": "%command.toggleProvider%"
       },
       {
         "command": "dualusage.openUsagePage",
-        "title": "DualUsage: Open Usage Page"
+        "title": "%command.openUsagePage%"
       }
     ],
     "viewsContainers": {
@@ -85,7 +85,7 @@
         {
           "type": "webview",
           "id": "dualusage.sidebar",
-          "name": "Account usage"
+          "name": "%view.sidebar.name%"
         }
       ]
     },
@@ -310,8 +310,8 @@
     "walkthroughs": [
       {
         "id": "dualusage.onboarding",
-        "title": "Get started with DualUsage",
-        "description": "Show Claude, ChatGPT, and Cursor account usage in VS Code.",
+        "title": "%walkthrough.title%",
+        "description": "%walkthrough.description%",
         "steps": [
           {
             "id": "openSidebar",

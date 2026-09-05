@@ -2,7 +2,21 @@
 
 All notable changes to DualUsage are documented in this file.
 
-## [0.4.0] — 2026-09-05
+## [0.4.0]
+
+### Fixed
+
+- Dispose webview message listeners when the sidebar view is disposed (no stacked handlers).
+- Context-menu **Open Usage Page** uses the right-clicked provider (via contextProvider handshake).
+- Open Settings filter uses the correct publisher id.
+
+### Added
+
+- Unit tests for orchestrator refresh queue, status bar backgrounds, and format/render helpers (40 tests).
+- README light/dark sidebar preview images.
+- Minimal Vietnamese `package.nls.vi.json` for core command/view strings.
+
+ — 2026-09-05
 
 ### Added
 

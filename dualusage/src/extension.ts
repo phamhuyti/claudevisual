@@ -55,7 +55,11 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("dualusage.toggleProvider", () => toggleProviders()),
     vscode.commands.registerCommand("dualusage.openUsagePage", async (provider?: ProviderId) => {
-      const id = provider ?? (await pickProvider("Open usage page for"));
+      const fromContext = sidebar.takeContextProvider();
+      const id =
+        provider ??
+        fromContext ??
+        (await pickProvider("Open usage page for"));
       if (!id) {
         return;
       }

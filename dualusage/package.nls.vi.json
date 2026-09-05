@@ -1,0 +1,12 @@
+{
+  "extension.displayName": "DualUsage",
+  "extension.description": "Theo dõi hạn mức Claude, ChatGPT và Cursor trên thanh trạng thái và thanh bên",
+  "command.refreshAll": "DualUsage: Làm mới tất cả",
+  "command.openSettings": "DualUsage: Mở Cài đặt",
+  "command.toggleProvider": "DualUsage: Bật/tắt nhà cung cấp",
+  "command.openUsagePage": "DualUsage: Mở trang usage",
+  "command.focusSidebar": "DualUsage: Tiêu điểm thanh bên",
+  "view.sidebar.name": "Mức dùng tài khoản",
+  "walkthrough.title": "Bắt đầu với DualUsage",
+  "walkthrough.description": "Hiển thị mức dùng Claude, ChatGPT và Cursor trong VS Code."
+}
