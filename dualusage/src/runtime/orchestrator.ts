@@ -14,6 +14,8 @@ export class UsageOrchestrator implements vscode.Disposable {
   private state: AppState = {};
   private timer: ReturnType<typeof setInterval> | undefined;
   private inFlight = false;
+  private pendingForce: { only?: ProviderId } | undefined;
+  private abort: AbortController | undefined;
   private disposed = false;
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -71,6 +73,9 @@ export class UsageOrchestrator implements vscode.Disposable {
   }
 
   private restart(): void {
+    this.abort?.abort();
+    this.abort = undefined;
+    this.pendingForce = undefined;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
@@ -101,13 +106,25 @@ export class UsageOrchestrator implements vscode.Disposable {
   }
 
   private async poll(force: boolean, only?: ProviderId): Promise<void> {
-    if (this.disposed || this.inFlight) {
+    if (this.disposed) {
+      return;
+    }
+    if (this.inFlight) {
+      // Never drop a manual refresh — queue it for after the current poll.
+      if (force) {
+        this.pendingForce = { only };
+      }
       return;
     }
     if (!force && !this.isStale() && !only) {
       return;
     }
+
     this.inFlight = true;
+    this.abort?.abort();
+    this.abort = new AbortController();
+    const signal = this.abort.signal;
+
     const settings = readSettings();
     const enabled = this.enabledMap();
     const ctx: FetchContext = {
@@ -115,6 +132,7 @@ export class UsageOrchestrator implements vscode.Disposable {
       codexHome: settings.codexHome,
       cursorDataPath: settings.cursorDataPath,
       chatgptSource: settings.chatgptSource,
+      signal,
     };
 
     const adapters = createAdapters(settings).filter((a) => !only || a.id === only);
@@ -146,6 +164,9 @@ export class UsageOrchestrator implements vscode.Disposable {
           try {
             return await adapter.fetch(ctx);
           } catch (err) {
+            if (signal.aborted) {
+              return prevOrError(adapter.id, this.state[adapter.id], "aborted");
+            }
             logError(`${adapter.id} adapter threw`, err);
             return {
               provider: adapter.id,
@@ -158,6 +179,10 @@ export class UsageOrchestrator implements vscode.Disposable {
           }
         })
       );
+
+      if (this.disposed || signal.aborted) {
+        return;
+      }
 
       const next: AppState = { ...this.state };
       for (const id of PROVIDER_IDS) {
@@ -184,6 +209,11 @@ export class UsageOrchestrator implements vscode.Disposable {
       this.publish(next);
     } finally {
       this.inFlight = false;
+      const queued = this.pendingForce;
+      this.pendingForce = undefined;
+      if (!this.disposed && queued) {
+        void this.poll(true, queued.only);
+      }
     }
   }
 
@@ -194,6 +224,9 @@ export class UsageOrchestrator implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
+    this.abort?.abort();
+    this.abort = undefined;
+    this.pendingForce = undefined;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
@@ -224,5 +257,23 @@ function pollingSnap(provider: ProviderId): ProviderSnapshot {
     source: defaultSource(provider),
     capturedAt: Date.now(),
     status: "polling",
+  };
+}
+
+function prevOrError(
+  id: ProviderId,
+  prev: ProviderSnapshot | undefined,
+  error: string
+): ProviderSnapshot {
+  if (prev && prev.status === "ok") {
+    return { ...prev, error };
+  }
+  return {
+    provider: id,
+    windows: [],
+    source: defaultSource(id),
+    capturedAt: Date.now(),
+    status: "error",
+    error,
   };
 }

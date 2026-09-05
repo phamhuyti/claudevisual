@@ -2,7 +2,7 @@
   "name": "dualusage",
   "displayName": "DualUsage",
   "description": "Account usage limits for Claude, ChatGPT, and Cursor in the VS Code status bar and sidebar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,8 @@
     "commands": [
       {
         "command": "dualusage.refreshAll",
-        "title": "DualUsage: Refresh All"
+        "title": "DualUsage: Refresh All",
+        "icon": "$(refresh)"
       },
       {
         "command": "dualusage.refreshClaude",
@@ -50,6 +51,15 @@
       {
         "command": "dualusage.refreshCursor",
         "title": "DualUsage: Refresh Cursor"
+      },
+      {
+        "command": "dualusage.openSettings",
+        "title": "DualUsage: Open Settings",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "dualusage.focusSidebar",
+        "title": "DualUsage: Focus Sidebar"
       }
     ],
     "viewsContainers": {
@@ -124,7 +134,11 @@
         },
         "dualusage.chatgpt.source": {
           "type": "string",
-          "enum": ["auto", "api", "rollout"],
+          "enum": [
+            "auto",
+            "api",
+            "rollout"
+          ],
           "default": "auto",
           "enumDescriptions": [
             "Try the live usage API, then fall back to local rollout files.",
@@ -135,13 +149,60 @@
         },
         "dualusage.statusBar.style": {
           "type": "string",
-          "enum": ["split", "compact"],
+          "enum": [
+            "split",
+            "compact",
+            "ultra"
+          ],
           "default": "split",
           "enumDescriptions": [
             "One status-bar item per enabled provider.",
-            "Single combined status-bar item."
+            "Single combined status-bar item.",
+            "Ultra-compact single item (short provider labels)."
           ],
           "description": "How to show providers on the status bar."
+        },
+        "dualusage.statusBar.showWindows": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include rate-window percentages on the status bar."
+        },
+        "dualusage.statusBar.showCredits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include credits / on-demand balance on the status bar."
+        },
+        "dualusage.statusBar.showMonthly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include monthly / plan spend on the status bar."
+        },
+        "dualusage.statusBar.clickAction": {
+          "type": "string",
+          "enum": [
+            "refresh",
+            "openSidebar",
+            "openSettings"
+          ],
+          "default": "refresh",
+          "enumDescriptions": [
+            "Refresh the clicked provider (or all in compact mode).",
+            "Focus the DualUsage sidebar.",
+            "Open DualUsage settings."
+          ],
+          "description": "What happens when a DualUsage status-bar item is clicked."
+        },
+        "dualusage.notifications.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a toast once each time usage crosses a warn threshold."
+        },
+        "dualusage.notifications.percent": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Toast threshold percent (0 = use dualusage.warnPercent)."
         },
         "dualusage.debug": {
           "type": "boolean",
@@ -149,12 +210,26 @@
           "description": "Log verbose DualUsage diagnostics (never logs tokens)."
         }
       }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "dualusage.refreshAll",
+          "when": "view == dualusage.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dualusage.openSettings",
+          "when": "view == dualusage.sidebar",
+          "group": "navigation@2"
+        }
+      ]
     }
   },
   "scripts": {
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "typecheck": "tsc -p . --noEmit",
+    "typecheck": "tsc -p . --noEmit && tsc -p tsconfig.webview.json --noEmit",
     "test": "npm run compile && mocha --config test/.mocharc.json",
     "package": "vsce package --no-dependencies"
   },

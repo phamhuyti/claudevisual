@@ -1,4 +1,6 @@
 const esbuild = require("esbuild");
+const fs = require("fs");
+const path = require("path");
 
 const watch = process.argv.includes("--watch");
 
@@ -11,7 +13,16 @@ const shared = {
   logLevel: "info",
 };
 
+function copySidebarCss() {
+  const src = path.join(__dirname, "src", "ui", "sidebar", "sidebar.css");
+  const destDir = path.join(__dirname, "dist");
+  fs.mkdirSync(destDir, { recursive: true });
+  fs.copyFileSync(src, path.join(destDir, "sidebar.css"));
+}
+
 async function main() {
+  copySidebarCss();
+
   const extension = await esbuild.context({
     ...shared,
     entryPoints: ["src/extension.ts"],
@@ -31,6 +42,14 @@ async function main() {
   });
 
   if (watch) {
+    fs.watchFile(path.join(__dirname, "src", "ui", "sidebar", "sidebar.css"), () => {
+      try {
+        copySidebarCss();
+        console.log("copied sidebar.css");
+      } catch (err) {
+        console.error(err);
+      }
+    });
     await Promise.all([extension.watch(), sidebar.watch()]);
     console.log("watching…");
   } else {

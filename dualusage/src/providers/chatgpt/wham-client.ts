@@ -14,14 +14,38 @@ export class HttpStatusError extends Error {
   }
 }
 
-async function getJson(url: string, headers: Record<string, string>, timeoutMs: number): Promise<unknown> {
+function mergeSignals(timeoutMs: number, outer?: AbortSignal): { signal: AbortSignal; dispose: () => void } {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const onOuter = (): void => ctrl.abort(outer?.reason);
+  if (outer) {
+    if (outer.aborted) {
+      ctrl.abort(outer.reason);
+    } else {
+      outer.addEventListener("abort", onOuter, { once: true });
+    }
+  }
+  return {
+    signal: ctrl.signal,
+    dispose: () => {
+      clearTimeout(timer);
+      outer?.removeEventListener("abort", onOuter);
+    },
+  };
+}
+
+async function getJson(
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs: number,
+  outer?: AbortSignal
+): Promise<unknown> {
+  const { signal, dispose } = mergeSignals(timeoutMs, outer);
   try {
     const res = await fetch(url, {
       method: "GET",
       headers,
-      signal: ctrl.signal,
+      signal,
     });
     if (res.status === 401 || res.status === 403) {
       throw new HttpStatusError(res.status, `auth failed (${res.status})`);
@@ -31,7 +55,7 @@ async function getJson(url: string, headers: Record<string, string>, timeoutMs: 
     }
     return (await res.json()) as unknown;
   } finally {
-    clearTimeout(t);
+    dispose();
   }
 }
 
@@ -46,15 +70,17 @@ export function buildChatgptHeaders(accessToken: string, accountId: string): Rec
 export async function fetchWhamUsage(
   accessToken: string,
   accountId: string,
-  timeoutMs = 10_000
+  timeoutMs = 10_000,
+  signal?: AbortSignal
 ): Promise<unknown> {
-  return getJson(WHAM_USAGE_URL, buildChatgptHeaders(accessToken, accountId), timeoutMs);
+  return getJson(WHAM_USAGE_URL, buildChatgptHeaders(accessToken, accountId), timeoutMs, signal);
 }
 
 export async function fetchMonthlyUsage(
   accessToken: string,
   accountId: string,
-  timeoutMs = 10_000
+  timeoutMs = 10_000,
+  signal?: AbortSignal
 ): Promise<unknown> {
-  return getJson(monthlyUsageUrl(accountId), buildChatgptHeaders(accessToken, accountId), timeoutMs);
+  return getJson(monthlyUsageUrl(accountId), buildChatgptHeaders(accessToken, accountId), timeoutMs, signal);
 }

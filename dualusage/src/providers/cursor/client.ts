@@ -16,20 +16,40 @@ function connectHeaders(accessToken: string): Record<string, string> {
   };
 }
 
+function mergeSignals(timeoutMs: number, outer?: AbortSignal): { signal: AbortSignal; dispose: () => void } {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const onOuter = (): void => ctrl.abort(outer?.reason);
+  if (outer) {
+    if (outer.aborted) {
+      ctrl.abort(outer.reason);
+    } else {
+      outer.addEventListener("abort", onOuter, { once: true });
+    }
+  }
+  return {
+    signal: ctrl.signal,
+    dispose: () => {
+      clearTimeout(timer);
+      outer?.removeEventListener("abort", onOuter);
+    },
+  };
+}
+
 async function postJson(
   url: string,
   headers: Record<string, string>,
   body: unknown,
-  timeoutMs: number
+  timeoutMs: number,
+  outer?: AbortSignal
 ): Promise<unknown> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const { signal, dispose } = mergeSignals(timeoutMs, outer);
   try {
     const res = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal: ctrl.signal,
+      signal,
     });
     if (res.status === 401 || res.status === 403) {
       throw new HttpStatusError(res.status, `auth failed (${res.status})`);
@@ -39,31 +59,35 @@ async function postJson(
     }
     return (await res.json()) as unknown;
   } finally {
-    clearTimeout(t);
+    dispose();
   }
 }
 
 export async function fetchCurrentPeriodUsage(
   accessToken: string,
-  timeoutMs = 10_000
+  timeoutMs = 10_000,
+  signal?: AbortSignal
 ): Promise<unknown> {
   return postJson(
     `${CURSOR_API_BASE}${PERIOD_USAGE_PATH}`,
     connectHeaders(accessToken),
     {},
-    timeoutMs
+    timeoutMs,
+    signal
   );
 }
 
 export async function fetchPlanInfo(
   accessToken: string,
-  timeoutMs = 10_000
+  timeoutMs = 10_000,
+  signal?: AbortSignal
 ): Promise<unknown> {
   return postJson(
     `${CURSOR_API_BASE}${PLAN_INFO_PATH}`,
     connectHeaders(accessToken),
     {},
-    timeoutMs
+    timeoutMs,
+    signal
   );
 }
 
@@ -77,10 +101,10 @@ export interface RefreshResult {
  */
 export async function refreshAccessToken(
   refreshToken: string,
-  timeoutMs = 10_000
+  timeoutMs = 10_000,
+  outer?: AbortSignal
 ): Promise<RefreshResult> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const { signal, dispose } = mergeSignals(timeoutMs, outer);
   try {
     const res = await fetch(OAUTH_TOKEN_URL, {
       method: "POST",
@@ -90,7 +114,7 @@ export async function refreshAccessToken(
         client_id: CURSOR_OAUTH_CLIENT_ID,
         refresh_token: refreshToken,
       }),
-      signal: ctrl.signal,
+      signal,
     });
     if (res.status === 401 || res.status === 403) {
       return { shouldLogout: true };
@@ -111,7 +135,7 @@ export async function refreshAccessToken(
         : undefined;
     return { accessToken, shouldLogout: !accessToken };
   } finally {
-    clearTimeout(t);
+    dispose();
   }
 }
 
@@ -130,6 +154,6 @@ export function isJwtExpired(token: string, skewSeconds = 60): boolean {
     }
     return payload.exp * 1000 <= Date.now() + skewSeconds * 1000;
   } catch {
-    return false;
+    return true;
   }
 }

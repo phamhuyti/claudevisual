@@ -69,6 +69,12 @@ export interface DualUsageSettings {
   codexHome: string;
   cursorDataPath: string;
   chatgptSource: "auto" | "api" | "rollout";
-  statusBarStyle: "split" | "compact";
+  statusBarStyle: "split" | "compact" | "ultra";
+  statusBarShowWindows: boolean;
+  statusBarShowCredits: boolean;
+  statusBarShowMonthly: boolean;
+  statusBarClickAction: "refresh" | "openSidebar" | "openSettings";
+  notificationsEnabled: boolean;
+  notificationsPercent: number;
   debug: boolean;
 }

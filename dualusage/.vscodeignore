@@ -8,3 +8,4 @@ esbuild.js
 node_modules/**
 .gitignore
 *.vsix
+tsconfig.webview.json

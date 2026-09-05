@@ -38,7 +38,7 @@ export class CursorAdapter implements ProviderAdapter {
     if ((!accessToken || isJwtExpired(accessToken)) && auth.refreshToken) {
       try {
         logDebug("cursor: refreshing access token in-memory");
-        const refreshed = await refreshAccessToken(auth.refreshToken);
+        const refreshed = await refreshAccessToken(auth.refreshToken, 10_000, ctx.signal);
         if (refreshed.shouldLogout || !refreshed.accessToken) {
           return {
             ...base,
@@ -75,10 +75,10 @@ export class CursorAdapter implements ProviderAdapter {
 
     try {
       logDebug("cursor: fetching GetCurrentPeriodUsage");
-      const payload = await fetchCurrentPeriodUsage(accessToken);
+      const payload = await fetchCurrentPeriodUsage(accessToken, 10_000, ctx.signal);
       let planName: string | undefined;
       try {
-        const planPayload = await fetchPlanInfo(accessToken);
+        const planPayload = await fetchPlanInfo(accessToken, 10_000, ctx.signal);
         planName = parseCursorPlanInfo(planPayload);
       } catch (err) {
         logDebug(`cursor GetPlanInfo failed: ${err instanceof Error ? err.message : String(err)}`);
