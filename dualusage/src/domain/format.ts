@@ -49,12 +49,35 @@ function formatCreditsShort(credits: FlexibleCredits | undefined): string | unde
   return undefined;
 }
 
+
+/** Remaining USD for a monthly/plan spend row. */
+export function monthlyRemainingUsd(monthly: MonthlySpend): number {
+  if (monthly.remaining !== undefined && Number.isFinite(monthly.remaining)) {
+    return Math.max(0, monthly.remaining);
+  }
+  return Math.max(0, monthly.limit - monthly.used);
+}
+
+/** Cursor plan spend as remaining dollars (status bar / compact). */
+export function formatCursorPlanRemaining(
+  monthly: MonthlySpend,
+  opts?: { fractionDigits?: number; withPercent?: boolean }
+): string {
+  const digits = opts?.fractionDigits ?? 0;
+  const left = monthlyRemainingUsd(monthly);
+  const base = `$${left.toFixed(digits)} left`;
+  if (opts?.withPercent) {
+    return `${base} (${Math.round(monthly.usedPercent)}%)`;
+  }
+  return base;
+}
+
 function formatMonthlyShort(monthly: MonthlySpend | undefined): string | undefined {
   if (!monthly) {
     return undefined;
   }
   if (monthly.source === "cursor_plan") {
-    return `$${monthly.used.toFixed(0)}/$${monthly.limit.toFixed(0)} (${Math.round(monthly.usedPercent)}%)`;
+    return formatCursorPlanRemaining(monthly, { withPercent: true });
   }
   return `monthly ${Math.round(monthly.usedPercent)}%`;
 }

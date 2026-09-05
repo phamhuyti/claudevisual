@@ -74,6 +74,7 @@ describe("cursor format + warn", () => {
       monthly: {
         limit: 400,
         used: 232.22,
+        remaining: 167.78,
         usedPercent: 58.055,
         source: "cursor_plan",
       },
@@ -84,7 +85,8 @@ describe("cursor format + warn", () => {
     };
     const line = formatProviderLine(snap);
     assert.ok(line.startsWith("Cursor "));
-    assert.ok(line.includes("$232/$400"));
+    assert.ok(line.includes("$168 left"));
+    assert.ok(!line.includes("$232/$400"));
     assert.ok(line.includes("58%"));
     assert.ok(line.includes("$85.00"));
   });
