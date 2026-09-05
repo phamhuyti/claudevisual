@@ -8,9 +8,9 @@ const DEFAULT_ORDER: ProviderId[] = ["claude", "chatgpt", "cursor"];
 export function readSettings(): DualUsageSettings {
   const cfg = vscode.workspace.getConfiguration("dualusage");
   return {
-    claudeEnabled: cfg.get<boolean>("providers.claude.enabled", true),
-    chatgptEnabled: cfg.get<boolean>("providers.chatgpt.enabled", true),
-    cursorEnabled: cfg.get<boolean>("providers.cursor.enabled", true),
+    claudeEnabled: cfg.get<boolean>("providers.claude.enabled", false),
+    chatgptEnabled: cfg.get<boolean>("providers.chatgpt.enabled", false),
+    cursorEnabled: cfg.get<boolean>("providers.cursor.enabled", false),
     providersOrder: normalizeOrder(cfg.get<string[]>("providers.order", DEFAULT_ORDER)),
     pollIntervalSeconds: resolveGlobalPollSeconds(cfg),
     claudePollIntervalSeconds: resolveProviderPollSeconds(cfg, "claude"),

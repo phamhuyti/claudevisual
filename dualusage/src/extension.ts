@@ -82,21 +82,21 @@ async function toggleProviders(): Promise<void> {
       key: "providers.claude.enabled",
       label: "Claude",
       description: "claude /usage CLI",
-      picked: cfg.get<boolean>("providers.claude.enabled", true),
+      picked: cfg.get<boolean>("providers.claude.enabled", false),
     },
     {
       id: "chatgpt",
       key: "providers.chatgpt.enabled",
       label: "ChatGPT",
       description: "Codex / WHAM API",
-      picked: cfg.get<boolean>("providers.chatgpt.enabled", true),
+      picked: cfg.get<boolean>("providers.chatgpt.enabled", false),
     },
     {
       id: "cursor",
       key: "providers.cursor.enabled",
       label: "Cursor",
       description: "Dashboard API",
-      picked: cfg.get<boolean>("providers.cursor.enabled", true),
+      picked: cfg.get<boolean>("providers.cursor.enabled", false),
     },
   ];
 

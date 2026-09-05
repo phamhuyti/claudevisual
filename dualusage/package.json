@@ -2,7 +2,7 @@
   "name": "dualusage",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -94,17 +94,17 @@
       "properties": {
         "dualusage.providers.claude.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Show Claude account usage (via `claude /usage`)."
         },
         "dualusage.providers.chatgpt.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Show ChatGPT account usage (via openai.chatgpt / Codex auth)."
         },
         "dualusage.providers.cursor.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Show Cursor account usage (via local Cursor state.vscdb + Dashboard API)."
         },
         "dualusage.warnPercent": {
