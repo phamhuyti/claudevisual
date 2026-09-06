@@ -121,7 +121,7 @@ describe("cursor auth helpers", () => {
     assert.strictEqual(p, path.resolve("/tmp/custom-state.vscdb"));
   });
 
-  it("reads auth keys from a temp sqlite db", function () {
+  it("reads auth keys from a temp sqlite db", async function () {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dualusage-cursor-"));
     const dbPath = path.join(dir, "state.vscdb");
     const sql = [
@@ -136,13 +136,45 @@ describe("cursor auth helpers", () => {
       this.skip();
       return;
     }
-    const auth = readCursorAuth(dbPath);
-    assert.strictEqual(auth.kind, "signed_in");
-    assert.strictEqual(auth.accessToken, "tok-access");
-    assert.strictEqual(auth.refreshToken, "tok-refresh");
-    assert.strictEqual(auth.email, "a@b.c");
-    assert.strictEqual(auth.membershipType, "pro");
-    fs.rmSync(dir, { recursive: true, force: true });
+    try {
+      const auth = await readCursorAuth(dbPath);
+      assert.strictEqual(auth.kind, "signed_in");
+      assert.strictEqual(auth.accessToken, "tok-access");
+      assert.strictEqual(auth.refreshToken, "tok-refresh");
+      assert.strictEqual(auth.email, "a@b.c");
+      assert.strictEqual(auth.membershipType, "pro");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a db without auth rows as missing, and a corrupt db as unreadable", async function () {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dualusage-cursor-"));
+    try {
+      const emptyDb = path.join(dir, "empty.vscdb");
+      const r = spawnSync(
+        "sqlite3",
+        [emptyDb, "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT);"],
+        { encoding: "utf8" }
+      );
+      if (r.status !== 0) {
+        this.skip();
+        return;
+      }
+      const empty = await readCursorAuth(emptyDb);
+      assert.strictEqual(empty.kind, "missing");
+
+      const corrupt = path.join(dir, "corrupt.vscdb");
+      fs.writeFileSync(corrupt, "definitely not a sqlite file");
+      const bad = await readCursorAuth(corrupt);
+      assert.strictEqual(bad.kind, "unreadable");
+      assert.ok(bad.reason && bad.reason.length > 0, "unreadable carries a reason");
+
+      const absent = await readCursorAuth(path.join(dir, "nope.vscdb"));
+      assert.strictEqual(absent.kind, "missing");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("detects expired jwt", () => {

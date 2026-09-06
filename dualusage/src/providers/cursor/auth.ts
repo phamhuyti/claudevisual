@@ -1,15 +1,22 @@
-import { spawnSync } from "child_process";
+import { execFile } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
 export interface CursorAuth {
-  kind: "missing" | "signed_in";
+  /**
+   * - `signed_in`: tokens found.
+   * - `missing`: no database, or the database has no Cursor auth entries.
+   * - `unreadable`: the database exists but could not be queried (no reader
+   *   available, locked, corrupt…). `reason` says why.
+   */
+  kind: "missing" | "signed_in" | "unreadable";
   accessToken?: string;
   refreshToken?: string;
   email?: string;
   membershipType?: string;
   dbPath: string;
+  reason?: string;
 }
 
 const AUTH_KEYS = [
@@ -18,6 +25,10 @@ const AUTH_KEYS = [
   "cursorAuth/cachedEmail",
   "cursorAuth/stripeMembershipType",
 ] as const;
+
+const READER_TIMEOUT_MS = 8_000;
+
+type KeyValues = Record<string, string | undefined>;
 
 /** Resolve Cursor `state.vscdb` path (override, then OS default). */
 export function resolveCursorStateDb(override: string): string {
@@ -60,32 +71,38 @@ export function defaultStateDbPath(): string {
 
 /**
  * Read Cursor auth material from local state.vscdb.
- * Never logs token values. Does not write the database.
+ * Never logs token values. Does not write the database. Never blocks the
+ * extension host: external readers are spawned asynchronously.
  */
-export function readCursorAuth(dbPath: string): CursorAuth {
+export async function readCursorAuth(dbPath: string, signal?: AbortSignal): Promise<CursorAuth> {
   if (!fs.existsSync(dbPath)) {
-    return { kind: "missing", dbPath };
+    return { kind: "missing", dbPath, reason: "state.vscdb not found" };
   }
+  let values: KeyValues;
   try {
-    const values = readItemTableKeys(dbPath, AUTH_KEYS);
-    const accessToken = cleanToken(values["cursorAuth/accessToken"]);
-    const refreshToken = cleanToken(values["cursorAuth/refreshToken"]);
-    const email = cleanToken(values["cursorAuth/cachedEmail"]);
-    const membershipType = cleanToken(values["cursorAuth/stripeMembershipType"]);
-    if (!accessToken && !refreshToken) {
-      return { kind: "missing", dbPath };
-    }
+    values = await readItemTableKeys(dbPath, AUTH_KEYS, signal);
+  } catch (err) {
     return {
-      kind: "signed_in",
-      accessToken,
-      refreshToken,
-      email,
-      membershipType,
+      kind: "unreadable",
       dbPath,
+      reason: err instanceof Error ? err.message : String(err),
     };
-  } catch {
-    return { kind: "missing", dbPath };
   }
+  const accessToken = cleanToken(values["cursorAuth/accessToken"]);
+  const refreshToken = cleanToken(values["cursorAuth/refreshToken"]);
+  const email = cleanToken(values["cursorAuth/cachedEmail"]);
+  const membershipType = cleanToken(values["cursorAuth/stripeMembershipType"]);
+  if (!accessToken && !refreshToken) {
+    return { kind: "missing", dbPath, reason: "no cursorAuth entries in state.vscdb" };
+  }
+  return {
+    kind: "signed_in",
+    accessToken,
+    refreshToken,
+    email,
+    membershipType,
+    dbPath,
+  };
 }
 
 function cleanToken(v: string | undefined): string | undefined {
@@ -100,43 +117,155 @@ function cleanToken(v: string | undefined): string | undefined {
   return t || undefined;
 }
 
-function readItemTableKeys(
+async function readItemTableKeys(
   dbPath: string,
-  keys: readonly string[]
-): Record<string, string | undefined> {
-  const viaCli = trySqlite3(dbPath, keys);
-  if (viaCli) {
-    return viaCli;
+  keys: readonly string[],
+  signal?: AbortSignal
+): Promise<KeyValues> {
+  const reasons: string[] = [];
+
+  const builtin = tryNodeSqlite(dbPath, keys);
+  if (builtin.ok) {
+    return builtin.values;
   }
-  const viaPy = tryPythonSqlite(dbPath, keys);
-  if (viaPy) {
-    return viaPy;
+  reasons.push(builtin.reason);
+
+  const viaCli = await trySqlite3(dbPath, keys, signal);
+  if (viaCli.ok) {
+    return viaCli.values;
   }
-  throw new Error("sqlite reader unavailable (need sqlite3 CLI or python3)");
+  reasons.push(viaCli.reason);
+
+  const viaPy = await tryPythonSqlite(dbPath, keys, signal);
+  if (viaPy.ok) {
+    return viaPy.values;
+  }
+  reasons.push(viaPy.reason);
+
+  throw new Error(`cannot read state.vscdb (${reasons.join("; ")})`);
 }
 
-function trySqlite3(
-  dbPath: string,
-  keys: readonly string[]
-): Record<string, string | undefined> | undefined {
-  // One query returning key|value pairs.
-  const inList = keys.map((k) => `'${k.replace(/'/g, "''")}'`).join(",");
-  const sql = `SELECT key, value FROM ItemTable WHERE key IN (${inList});`;
-  const r = spawnSync("sqlite3", ["-separator", "\t", dbPath, sql], {
-    encoding: "utf8",
-    timeout: 8_000,
-    maxBuffer: 2 * 1024 * 1024,
-  });
-  if (r.error || r.status !== 0) {
+type ReaderResult = { ok: true; values: KeyValues } | { ok: false; reason: string };
+
+interface NodeSqliteModule {
+  DatabaseSync: new (
+    path: string,
+    options?: { readOnly?: boolean }
+  ) => {
+    prepare(sql: string): { all(...params: unknown[]): unknown[] };
+    close(): void;
+  };
+}
+
+/** Node ≥ 22.13 ships `node:sqlite`; VS Code's Electron picks it up from 1.102 on. */
+function loadNodeSqlite(): NodeSqliteModule | undefined {
+  const getBuiltin = (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
+  if (typeof getBuiltin !== "function") {
     return undefined;
   }
-  return parseTsvKeyValues(r.stdout || "");
+  try {
+    const mod = getBuiltin.call(process, "node:sqlite") as NodeSqliteModule | undefined;
+    return mod && typeof mod.DatabaseSync === "function" ? mod : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-function tryPythonSqlite(
+function tryNodeSqlite(dbPath: string, keys: readonly string[]): ReaderResult {
+  const sqlite = loadNodeSqlite();
+  if (!sqlite) {
+    return { ok: false, reason: "node:sqlite unavailable" };
+  }
+  let db: InstanceType<NodeSqliteModule["DatabaseSync"]> | undefined;
+  try {
+    db = new sqlite.DatabaseSync(dbPath, { readOnly: true });
+    const placeholders = keys.map(() => "?").join(",");
+    const rows = db
+      .prepare(`SELECT key, value FROM ItemTable WHERE key IN (${placeholders})`)
+      .all(...keys) as Array<{ key?: unknown; value?: unknown }>;
+    const out: KeyValues = {};
+    for (const row of rows) {
+      if (typeof row.key !== "string") {
+        continue;
+      }
+      out[row.key] = blobToString(row.value);
+    }
+    return { ok: true, values: out };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: `node:sqlite: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function blobToString(v: unknown): string | undefined {
+  if (typeof v === "string") {
+    return v;
+  }
+  if (v instanceof Uint8Array) {
+    return Buffer.from(v).toString("utf8");
+  }
+  return v === null || v === undefined ? undefined : String(v);
+}
+
+function run(
+  file: string,
+  args: string[],
+  signal?: AbortSignal
+): Promise<{ ok: true; stdout: string } | { ok: false; reason: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      file,
+      args,
+      {
+        encoding: "utf8",
+        timeout: READER_TIMEOUT_MS,
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true,
+        signal,
+      },
+      (err, stdout, stderr) => {
+        if (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          const reason =
+            code === "ENOENT"
+              ? `${file} not found`
+              : (stderr || err.message || String(err)).trim().split(/\r?\n/)[0];
+          resolve({ ok: false, reason: `${file}: ${reason}` });
+          return;
+        }
+        resolve({ ok: true, stdout });
+      }
+    );
+  });
+}
+
+async function trySqlite3(
   dbPath: string,
-  keys: readonly string[]
-): Record<string, string | undefined> | undefined {
+  keys: readonly string[],
+  signal?: AbortSignal
+): Promise<ReaderResult> {
+  const inList = keys.map((k) => `'${k.replace(/'/g, "''")}'`).join(",");
+  const sql = `SELECT key, value FROM ItemTable WHERE key IN (${inList});`;
+  const r = await run("sqlite3", ["-readonly", "-separator", "\t", dbPath, sql], signal);
+  if (!r.ok) {
+    return r;
+  }
+  return { ok: true, values: parseTsvKeyValues(r.stdout) };
+}
+
+async function tryPythonSqlite(
+  dbPath: string,
+  keys: readonly string[],
+  signal?: AbortSignal
+): Promise<ReaderResult> {
   const script = `
 import json, sqlite3, sys
 db, keys = sys.argv[1], json.loads(sys.argv[2])
@@ -147,28 +276,25 @@ cur.execute(q, keys)
 print(json.dumps({k: (v if isinstance(v, str) else (v.decode("utf-8", "replace") if isinstance(v, (bytes, bytearray)) else None)) for k, v in cur.fetchall()}))
 con.close()
 `.trim();
-  const r = spawnSync("python3", ["-c", script, dbPath, JSON.stringify(keys)], {
-    encoding: "utf8",
-    timeout: 8_000,
-    maxBuffer: 2 * 1024 * 1024,
-  });
-  if (r.error || r.status !== 0) {
-    return undefined;
+  const python = process.platform === "win32" ? "python" : "python3";
+  const r = await run(python, ["-c", script, dbPath, JSON.stringify(keys)], signal);
+  if (!r.ok) {
+    return r;
   }
   try {
-    const parsed = JSON.parse((r.stdout || "").trim()) as Record<string, string | null>;
-    const out: Record<string, string | undefined> = {};
+    const parsed = JSON.parse(r.stdout.trim()) as Record<string, string | null>;
+    const out: KeyValues = {};
     for (const k of keys) {
       out[k] = parsed[k] ?? undefined;
     }
-    return out;
+    return { ok: true, values: out };
   } catch {
-    return undefined;
+    return { ok: false, reason: `${python}: unexpected output` };
   }
 }
 
-function parseTsvKeyValues(stdout: string): Record<string, string | undefined> {
-  const out: Record<string, string | undefined> = {};
+function parseTsvKeyValues(stdout: string): KeyValues {
+  const out: KeyValues = {};
   for (const line of stdout.split(/\r?\n/)) {
     if (!line.trim()) {
       continue;
