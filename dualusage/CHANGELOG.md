@@ -2,6 +2,12 @@
 
 All notable changes to DualUsage are documented in this file.
 
+## [0.4.5] — 2026-09-06
+
+### Changed
+
+- CI/release workflow actions moved to their Node 24 runtimes (`actions/checkout@v7`, `actions/setup-node@v7`, `actions/upload-artifact@v7`, `actions/download-artifact@v8`, `softprops/action-gh-release@v3`), ahead of GitHub retiring the Node 20 action runtime. No functional changes to the extension.
+
 ## [0.4.4] — 2026-09-06
 
 ### Security
