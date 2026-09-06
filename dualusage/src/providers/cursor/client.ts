@@ -96,6 +96,8 @@ export async function fetchPlanInfo(
 
 export interface RefreshResult {
   accessToken?: string;
+  /** Present when the server rotated the refresh token; must replace the one used. */
+  refreshToken?: string;
   shouldLogout: boolean;
 }
 
@@ -127,6 +129,7 @@ export async function refreshAccessToken(
     }
     const json = (await res.json()) as {
       access_token?: string;
+      refresh_token?: string;
       shouldLogout?: boolean;
     };
     if (json.shouldLogout) {
@@ -136,7 +139,15 @@ export async function refreshAccessToken(
       typeof json.access_token === "string" && json.access_token.trim()
         ? json.access_token.trim()
         : undefined;
-    return { accessToken, shouldLogout: !accessToken };
+    const rotated =
+      typeof json.refresh_token === "string" && json.refresh_token.trim()
+        ? json.refresh_token.trim()
+        : undefined;
+    return {
+      accessToken,
+      refreshToken: rotated && rotated !== refreshToken ? rotated : undefined,
+      shouldLogout: !accessToken,
+    };
   } finally {
     dispose();
   }

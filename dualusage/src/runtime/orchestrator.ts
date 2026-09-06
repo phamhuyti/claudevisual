@@ -1,13 +1,23 @@
 import * as vscode from "vscode";
-import { AppState, HistoryState, ProviderId, ProviderSnapshot } from "../domain/types";
+import {
+  AppState,
+  DualUsageSettings,
+  HistoryState,
+  PROVIDER_IDS,
+  ProviderId,
+  ProviderSnapshot,
+} from "../domain/types";
 import { logDebug, logError } from "../log";
 import { createAdapters } from "../providers/registry";
 import { FetchContext, ProviderAdapter } from "../providers/types";
-import { DualUsageSettings } from "../domain/types";
 import { UsagePersistence } from "./persistence";
-import { pollIntervalSecondsFor, readSettings } from "./settings";
-
-const PROVIDER_IDS: ProviderId[] = ["claude", "chatgpt", "cursor"];
+import {
+  affectsPolling,
+  DEFAULT_POLL_SECONDS,
+  MIN_POLL_SECONDS,
+  pollIntervalSecondsFor,
+  readSettings,
+} from "./settings";
 
 export type AdapterFactory = (settings: DualUsageSettings) => ProviderAdapter[];
 
@@ -19,6 +29,16 @@ export interface OrchestratorOptions {
   createAdapters?: AdapterFactory;
 }
 
+/**
+ * Schedules provider fetches and owns the published AppState.
+ *
+ * - Each provider is tracked in flight independently, so a slow Claude CLI run
+ *   never withholds fresh ChatGPT/Cursor numbers.
+ * - Results are merged and published as they settle; persistence happens once
+ *   per batch.
+ * - `restart()` bumps a generation counter: anything still running from an
+ *   older generation is aborted and its results / bookkeeping are discarded.
+ */
 export class UsageOrchestrator implements vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<AppState>();
   readonly onDidChange = this.emitter.event;
@@ -29,9 +49,11 @@ export class UsageOrchestrator implements vscode.Disposable {
   private state: AppState = {};
   private history: HistoryState = { points: [] };
   private timer: ReturnType<typeof setInterval> | undefined;
-  private inFlight = false;
-  private pendingForce: { only?: ProviderId } | undefined;
-  private abort: AbortController | undefined;
+  private readonly inFlight = new Set<ProviderId>();
+  /** Providers whose forced refresh was requested while they were in flight. */
+  private readonly pendingForce = new Set<ProviderId>();
+  private abort = new AbortController();
+  private generation = 0;
   private disposed = false;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly persistence?: UsagePersistence;
@@ -47,11 +69,11 @@ export class UsageOrchestrator implements vscode.Disposable {
       if (cached && Object.keys(cached).length > 0) {
         this.state = this.withStaleFlags(cached);
       }
-      this.history = this.persistence.loadHistory();
+      this.history = this.persistence.loadHistory(this.now());
     }
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("dualusage")) {
+        if (affectsPolling(e)) {
           this.restart();
         }
       }),
@@ -95,29 +117,29 @@ export class UsageOrchestrator implements vscode.Disposable {
       settings.claudePollIntervalSeconds,
       settings.chatgptPollIntervalSeconds,
       settings.cursorPollIntervalSeconds,
-    ].filter((s) => s > 0);
-    const smallest = Math.min(...seconds);
-    return Math.max(5_000, smallest * 1000);
+    ].filter((s) => Number.isFinite(s) && s > 0);
+    const smallest = seconds.length ? Math.min(...seconds) : DEFAULT_POLL_SECONDS;
+    return Math.max(MIN_POLL_SECONDS * 1000, smallest * 1000);
   }
 
-  private enabledMap(): Record<ProviderId, boolean> {
-    const s = readSettings();
+  private enabledMap(settings = readSettings()): Record<ProviderId, boolean> {
     return {
-      claude: s.claudeEnabled,
-      chatgpt: s.chatgptEnabled,
-      cursor: s.cursorEnabled,
+      claude: settings.claudeEnabled,
+      chatgpt: settings.chatgptEnabled,
+      cursor: settings.cursorEnabled,
     };
   }
 
   private withStaleFlags(state: AppState): AppState {
     const next: AppState = {};
     const now = this.now();
+    const settings = readSettings();
     for (const id of PROVIDER_IDS) {
       const snap = state[id];
       if (!snap) {
         continue;
       }
-      const intervalMs = pollIntervalSecondsFor(id) * 1000;
+      const intervalMs = pollIntervalSecondsFor(id, settings) * 1000;
       const age = now - (snap.capturedAt || 0);
       next[id] = {
         ...snap,
@@ -127,8 +149,23 @@ export class UsageOrchestrator implements vscode.Disposable {
     return next;
   }
 
-  private dueProviders(force: boolean, only?: ProviderId): ProviderId[] {
-    const enabled = this.enabledMap();
+  /** Re-publish only when some provider's stale flag actually changed. */
+  private refreshStaleFlags(): void {
+    const next = this.withStaleFlags(this.state);
+    const changed = PROVIDER_IDS.some(
+      (id) => (this.state[id]?.stale ?? false) !== (next[id]?.stale ?? false)
+    );
+    if (changed) {
+      this.publish(next);
+    }
+  }
+
+  private dueProviders(
+    force: boolean,
+    only: ProviderId | undefined,
+    settings: DualUsageSettings
+  ): ProviderId[] {
+    const enabled = this.enabledMap(settings);
     const now = this.now();
     return PROVIDER_IDS.filter((id) => {
       if (only && id !== only) {
@@ -144,15 +181,17 @@ export class UsageOrchestrator implements vscode.Disposable {
       if (!snap || snap.status === "polling" || !snap.capturedAt) {
         return true;
       }
-      const intervalMs = pollIntervalSecondsFor(id) * 1000;
+      const intervalMs = pollIntervalSecondsFor(id, settings) * 1000;
       return now - snap.capturedAt >= intervalMs;
     });
   }
 
   private restart(): void {
-    this.abort?.abort();
-    this.abort = undefined;
-    this.pendingForce = undefined;
+    this.generation += 1;
+    this.abort.abort();
+    this.abort = new AbortController();
+    this.inFlight.clear();
+    this.pendingForce.clear();
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
@@ -161,14 +200,16 @@ export class UsageOrchestrator implements vscode.Disposable {
       return;
     }
     const enabled = this.enabledMap();
+    const now = this.now();
     const next: AppState = {};
     for (const id of PROVIDER_IDS) {
+      const prev = this.state[id];
       if (!enabled[id]) {
-        next[id] = disabledSnap(id);
-      } else if (this.state[id]?.status !== "disabled" && this.state[id]) {
-        next[id] = { ...this.state[id]!, cached: this.state[id]!.cached };
+        next[id] = disabledSnap(id, now);
+      } else if (prev && prev.status !== "disabled") {
+        next[id] = { ...prev, refreshing: false };
       } else {
-        next[id] = pollingSnap(id);
+        next[id] = pollingSnap(id, now);
       }
     }
     this.publish(this.withStaleFlags(next));
@@ -177,6 +218,8 @@ export class UsageOrchestrator implements vscode.Disposable {
     this.timer = setInterval(() => {
       if (vscode.window.state.focused) {
         void this.poll(false);
+      } else {
+        this.refreshStaleFlags();
       }
     }, this.tickMs());
   }
@@ -185,26 +228,25 @@ export class UsageOrchestrator implements vscode.Disposable {
     if (this.disposed) {
       return;
     }
-    if (this.inFlight) {
-      if (force) {
-        this.pendingForce = { only };
-      }
-      return;
-    }
-
-    const due = this.dueProviders(force, only);
-    if (due.length === 0) {
-      this.publish(this.withStaleFlags(this.state));
-      return;
-    }
-
-    this.inFlight = true;
-    this.abort?.abort();
-    this.abort = new AbortController();
-    const signal = this.abort.signal;
-
     const settings = readSettings();
-    const enabled = this.enabledMap();
+    const due: ProviderId[] = [];
+    for (const id of this.dueProviders(force, only, settings)) {
+      if (this.inFlight.has(id)) {
+        if (force) {
+          this.pendingForce.add(id);
+        }
+      } else {
+        due.push(id);
+      }
+    }
+    if (due.length === 0) {
+      this.refreshStaleFlags();
+      return;
+    }
+
+    const gen = this.generation;
+    const signal = this.abort.signal;
+    const enabled = this.enabledMap(settings);
     const ctx: FetchContext = {
       claudePath: settings.claudePath,
       codexHome: settings.codexHome,
@@ -213,101 +255,119 @@ export class UsageOrchestrator implements vscode.Disposable {
       signal,
     };
 
-    const adapters = this.createAdapters(settings).filter((a) => due.includes(a.id));
+    let adapters: ProviderAdapter[];
+    try {
+      adapters = this.createAdapters(settings).filter((a) => due.includes(a.id));
+    } catch (err) {
+      logError("orchestrator: creating adapters failed", err);
+      return;
+    }
     logDebug(`orchestrator: polling ${adapters.map((a) => a.id).join(",") || "(none)"}`);
 
     const pending: AppState = { ...this.state };
     for (const a of adapters) {
-      const prev = pending[a.id];
-      pending[a.id] = {
-        ...(prev ?? pollingSnap(a.id)),
-        status:
-          prev?.status === "ok" || prev?.cached
-            ? prev.status === "ok"
-              ? "ok"
-              : prev.status
-            : "polling",
-        provider: a.id,
-        windows: prev?.windows ?? [],
-        source: prev?.source ?? defaultSource(a.id),
-        capturedAt: prev?.capturedAt ?? this.now(),
-        cached: prev?.cached,
-      };
-      // Keep showing cached/ok numbers while refreshing; only mark polling when empty.
-      if (
-        !prev ||
-        (prev.status !== "ok" && !prev.windows.length && !prev.credits && !prev.monthly)
-      ) {
-        pending[a.id]!.status = "polling";
-      }
+      pending[a.id] = pendingSnap(a.id, pending[a.id], this.now());
     }
     for (const id of PROVIDER_IDS) {
       if (!enabled[id]) {
-        pending[id] = disabledSnap(id);
+        pending[id] = disabledSnap(id, this.now());
       }
     }
-    this.publish(this.withStaleFlags(pending));
-
     try {
-      const results = await Promise.all(
-        adapters.map(async (adapter) => {
-          try {
-            return await adapter.fetch(ctx);
-          } catch (err) {
-            if (signal.aborted) {
-              return prevOrError(adapter.id, this.state[adapter.id], "aborted");
-            }
-            logError(`${adapter.id} adapter threw`, err);
-            return {
-              provider: adapter.id,
-              windows: [],
-              source: defaultSource(adapter.id),
-              capturedAt: this.now(),
-              status: "error" as const,
-              error: err instanceof Error ? err.message : String(err),
-            };
-          }
-        })
-      );
+      this.publish(this.withStaleFlags(pending));
+    } catch (err) {
+      logError("orchestrator: publish failed", err);
+    }
 
-      if (this.disposed || signal.aborted) {
-        return;
-      }
+    await Promise.all(adapters.map((adapter) => this.fetchOne(adapter, ctx, gen, signal, enabled)));
+    if (this.disposed || gen !== this.generation) {
+      return;
+    }
+    this.persist();
+  }
 
-      const next: AppState = { ...this.state };
-      for (const id of PROVIDER_IDS) {
-        if (!enabled[id]) {
-          next[id] = disabledSnap(id);
-        }
-      }
-      for (const snap of results) {
-        const prev = this.state[snap.provider];
-        if (
-          snap.status === "error" &&
-          snap.windows.length === 0 &&
-          !snap.credits &&
-          !snap.monthly &&
-          prev &&
-          (prev.status === "ok" || prev.cached)
-        ) {
-          next[snap.provider] = { ...prev, error: snap.error, cached: prev.cached };
-        } else {
-          next[snap.provider] = { ...snap, cached: false, stale: false };
-        }
-      }
-      this.publish(this.withStaleFlags(next));
-      if (this.persistence) {
-        this.persistence.saveState(next);
-        this.history = this.persistence.recordHistory(next, this.now());
-        this.historyEmitter.fire(this.history);
+  /** Fetch one provider; never rejects. Bookkeeping is skipped for stale generations. */
+  private async fetchOne(
+    adapter: ProviderAdapter,
+    ctx: FetchContext,
+    gen: number,
+    signal: AbortSignal,
+    enabled: Record<ProviderId, boolean>
+  ): Promise<void> {
+    const id = adapter.id;
+    this.inFlight.add(id);
+    let snap: ProviderSnapshot;
+    try {
+      snap = await adapter.fetch(ctx);
+    } catch (err) {
+      if (signal.aborted) {
+        snap = prevOrError(id, this.state[id], "aborted", this.now());
+      } else {
+        logError(`${id} adapter threw`, err);
+        snap = {
+          provider: id,
+          windows: [],
+          source: defaultSource(id),
+          capturedAt: this.now(),
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
     } finally {
-      this.inFlight = false;
-      const queued = this.pendingForce;
-      this.pendingForce = undefined;
-      if (!this.disposed && queued) {
-        void this.poll(true, queued.only);
+      if (gen === this.generation) {
+        this.inFlight.delete(id);
       }
+    }
+    if (this.disposed || gen !== this.generation || signal.aborted) {
+      return;
+    }
+    try {
+      this.mergeResult(snap, enabled);
+    } catch (err) {
+      logError("orchestrator: merge failed", err);
+    }
+    if (this.pendingForce.delete(id)) {
+      void this.poll(true, id);
+    }
+  }
+
+  private mergeResult(snap: ProviderSnapshot, enabled: Record<ProviderId, boolean>): void {
+    const next: AppState = { ...this.state };
+    for (const id of PROVIDER_IDS) {
+      if (!enabled[id]) {
+        next[id] = disabledSnap(id, this.now());
+      }
+    }
+    const prev = this.state[snap.provider];
+    if (
+      snap.status === "error" &&
+      !hasData(snap) &&
+      prev &&
+      (prev.status === "ok" || prev.cached)
+    ) {
+      // Keep the last good numbers; surface the failure via `error`.
+      next[snap.provider] = { ...prev, error: snap.error, refreshing: false };
+    } else {
+      next[snap.provider] = { ...snap, cached: false, stale: false, refreshing: false };
+    }
+    this.publish(this.withStaleFlags(next));
+  }
+
+  private persist(): void {
+    if (!this.persistence) {
+      return;
+    }
+    try {
+      this.persistence.saveState(this.state);
+      const history = this.persistence.recordHistory(this.state, this.now());
+      const lastT = history.points[history.points.length - 1]?.t;
+      const prevLastT = this.history.points[this.history.points.length - 1]?.t;
+      if (history.points.length !== this.history.points.length || lastT !== prevLastT) {
+        this.history = history;
+        this.historyEmitter.fire(this.history);
+      }
+    } catch (err) {
+      logError("orchestrator: persist failed", err);
     }
   }
 
@@ -318,9 +378,10 @@ export class UsageOrchestrator implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
-    this.abort?.abort();
-    this.abort = undefined;
-    this.pendingForce = undefined;
+    this.generation += 1;
+    this.abort.abort();
+    this.inFlight.clear();
+    this.pendingForce.clear();
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
@@ -331,34 +392,55 @@ export class UsageOrchestrator implements vscode.Disposable {
   }
 }
 
+function hasData(snap: ProviderSnapshot): boolean {
+  return snap.windows.length > 0 || !!snap.credits || !!snap.monthly || !!snap.codeReview;
+}
+
 function defaultSource(provider: ProviderId): ProviderSnapshot["source"] {
   return provider === "claude" ? "cli" : "api";
 }
 
-function disabledSnap(provider: ProviderId): ProviderSnapshot {
+function disabledSnap(provider: ProviderId, now: number): ProviderSnapshot {
   return {
     provider,
     windows: [],
     source: defaultSource(provider),
-    capturedAt: Date.now(),
+    capturedAt: now,
     status: "disabled",
   };
 }
 
-function pollingSnap(provider: ProviderId): ProviderSnapshot {
+function pollingSnap(provider: ProviderId, now: number): ProviderSnapshot {
   return {
     provider,
     windows: [],
     source: defaultSource(provider),
-    capturedAt: Date.now(),
+    capturedAt: now,
     status: "polling",
   };
+}
+
+/**
+ * Snapshot shown while a fetch is in flight. Existing numbers (live or cached)
+ * and data-less terminal states (signed_out, cli_missing, …) are kept as-is with
+ * `refreshing: true`; only a missing/placeholder snapshot becomes `polling`.
+ */
+function pendingSnap(
+  provider: ProviderId,
+  prev: ProviderSnapshot | undefined,
+  now: number
+): ProviderSnapshot {
+  if (!prev || prev.status === "polling") {
+    return { ...pollingSnap(provider, now), refreshing: true };
+  }
+  return { ...prev, refreshing: true };
 }
 
 function prevOrError(
   id: ProviderId,
   prev: ProviderSnapshot | undefined,
-  error: string
+  error: string,
+  now: number
 ): ProviderSnapshot {
   if (prev && (prev.status === "ok" || prev.cached)) {
     return { ...prev, error };
@@ -367,7 +449,7 @@ function prevOrError(
     provider: id,
     windows: [],
     source: defaultSource(id),
-    capturedAt: Date.now(),
+    capturedAt: now,
     status: "error",
     error,
   };

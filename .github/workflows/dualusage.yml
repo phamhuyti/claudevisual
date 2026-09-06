@@ -75,6 +75,8 @@ jobs:
           fi
 
       - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
       - run: npm run typecheck
       # `npm test` runs `npm run compile` first, so dist/ is fresh for packaging.
       - run: npm test

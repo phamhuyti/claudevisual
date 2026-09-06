@@ -39,19 +39,19 @@ it does not write tokens back to `state.vscdb`.
 
 ## Settings
 
-| Setting                               | Default | Purpose                                              |
-| ------------------------------------- | ------- | ---------------------------------------------------- |
-| `dualusage.providers.claude.enabled`  | `false` | Show Claude                                          |
-| `dualusage.providers.chatgpt.enabled` | `false` | Show ChatGPT                                         |
-| `dualusage.providers.cursor.enabled`  | `false` | Show Cursor                                          |
-| `dualusage.pollIntervalSeconds`       | `60`    | Refresh while window focused (seconds, min 5)        |
-| `dualusage.warnPercent`               | `90`    | Warning threshold for windows / monthly              |
-| `dualusage.creditsWarnBalance`        | `1`     | Warn when flexible / on-demand credits &lt; this USD |
-| `dualusage.claudePath`                | `""`    | Optional `claude` binary path                        |
-| `dualusage.codexHome`                 | `""`    | Optional Codex home                                  |
-| `dualusage.cursorDataPath`            | `""`    | Optional Cursor data root or `state.vscdb`           |
-| `dualusage.chatgpt.source`            | `auto`  | `auto` / `api` / `rollout`                           |
-| `dualusage.statusBar.style`           | `split` | `split` (per provider) or `compact`                  |
+| Setting                               | Default | Purpose                                               |
+| ------------------------------------- | ------- | ----------------------------------------------------- |
+| `dualusage.providers.claude.enabled`  | `false` | Show Claude                                           |
+| `dualusage.providers.chatgpt.enabled` | `false` | Show ChatGPT                                          |
+| `dualusage.providers.cursor.enabled`  | `false` | Show Cursor                                           |
+| `dualusage.pollIntervalSeconds`       | `60`    | Refresh while window focused (seconds, min 5)         |
+| `dualusage.warnPercent`               | `90`    | Warning threshold for windows / monthly               |
+| `dualusage.creditsWarnBalance`        | `1`     | Warn when flexible / on-demand credits &lt; this USD  |
+| `dualusage.claudePath`                | `""`    | Optional `claude` binary path (user settings only)    |
+| `dualusage.codexHome`                 | `""`    | Optional Codex home (user settings only)              |
+| `dualusage.cursorDataPath`            | `""`    | Optional Cursor data root / `state.vscdb` (user only) |
+| `dualusage.chatgpt.source`            | `auto`  | `auto` / `api` / `rollout`                            |
+| `dualusage.statusBar.style`           | `split` | `split` (per provider) or `compact`                   |
 
 ## Install from a release
 
@@ -105,7 +105,7 @@ Release is created.
 
 - Local credentials only; no DualUsage cloud backend.
 - ChatGPT and Cursor usage endpoints are undocumented product APIs and may change.
-- Cursor auth requires a readable local `state.vscdb` (and `sqlite3` or `python3` on PATH to query it).
+- Cursor auth requires a readable local `state.vscdb`. It is read with Node's built-in `node:sqlite` when available (VS Code ≥ 1.102), falling back to a `sqlite3` or `python3` CLI on PATH.
 - OS keyring-only Codex auth (no `auth.json` file) is not supported in v0.1 — open the ChatGPT extension so it writes file auth, or set Codex to file credential store.
 - API-key-only OpenAI auth cannot query ChatGPT plan windows; sign in with ChatGPT.
 
@@ -118,14 +118,13 @@ MIT
 Light and dark themes follow VS Code tokens. Open the DualUsage activity-bar view after install.
 
 <p align="center">
-  <img src="docs/images/sidebar-dark.png" alt="DualUsage sidebar (dark)" width="280" />
+  <img src="https://raw.githubusercontent.com/phamhuyti/claudevisual/main/dualusage/docs/images/sidebar-dark.png" alt="DualUsage sidebar (dark)" width="280" />
   &nbsp;
-  <img src="docs/images/sidebar-light.png" alt="DualUsage sidebar (light)" width="280" />
+  <img src="https://raw.githubusercontent.com/phamhuyti/claudevisual/main/dualusage/docs/images/sidebar-light.png" alt="DualUsage sidebar (light)" width="280" />
 </p>
 
-| Theme | What to check |
-| --- | --- |
-| Dark+ | Provider cards, ring gauge, warn colors |
-| Light+ | Same layout with readable muted text |
+| Theme         | What to check                               |
+| ------------- | ------------------------------------------- |
+| Dark+         | Provider cards, ring gauge, warn colors     |
+| Light+        | Same layout with readable muted text        |
 | High Contrast | Focus rings and status chips remain visible |
-

@@ -19,6 +19,9 @@ export function windowLabel(windowSeconds: number | undefined): string {
   if (Math.abs(days - 7) < 0.3) {
     return "7d";
   }
+  if (hours < 1) {
+    return `${Math.max(1, Math.round(windowSeconds / 60))}m`;
+  }
   if (hours < 48) {
     const h = Math.round(hours);
     return `${h}h`;
@@ -49,11 +52,13 @@ function formatCreditsShort(credits: FlexibleCredits | undefined): string | unde
   return undefined;
 }
 
-
-/** Remaining USD for a monthly/plan spend row. */
-export function monthlyRemainingUsd(monthly: MonthlySpend): number {
+/** Remaining USD for a monthly/plan spend row; undefined when inputs are not finite. */
+export function monthlyRemainingUsd(monthly: MonthlySpend): number | undefined {
   if (monthly.remaining !== undefined && Number.isFinite(monthly.remaining)) {
     return Math.max(0, monthly.remaining);
+  }
+  if (!Number.isFinite(monthly.limit) || !Number.isFinite(monthly.used)) {
+    return undefined;
   }
   return Math.max(0, monthly.limit - monthly.used);
 }
@@ -63,10 +68,14 @@ export function formatCursorPlanRemaining(
   monthly: MonthlySpend,
   opts?: { fractionDigits?: number; withPercent?: boolean }
 ): string {
-  const digits = opts?.fractionDigits ?? 0;
   const left = monthlyRemainingUsd(monthly);
+  if (left === undefined) {
+    return "—";
+  }
+  // Sub-dollar remainders would otherwise round to a misleading "$0 left" / "$1 left".
+  const digits = left > 0 && left < 1 ? 2 : (opts?.fractionDigits ?? 0);
   const base = `$${left.toFixed(digits)} left`;
-  if (opts?.withPercent) {
+  if (opts?.withPercent && Number.isFinite(monthly.usedPercent)) {
     return `${base} (${Math.round(monthly.usedPercent)}%)`;
   }
   return base;
@@ -149,7 +158,12 @@ export function parseBalanceNumber(balance: string | undefined): number | undefi
   if (!balance) {
     return undefined;
   }
-  const n = Number(balance.replace(/[^0-9.]/g, ""));
+  const digits = String(balance).replace(/[^0-9.]/g, "");
+  if (!digits) {
+    // "$" or "—" must not parse as a zero balance.
+    return undefined;
+  }
+  const n = Number(digits);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -168,6 +182,9 @@ export function shouldWarn(
     if (w.usedPercent >= warnPercent) {
       return true;
     }
+  }
+  if (snap.codeReview && snap.codeReview.usedPercent >= warnPercent) {
+    return true;
   }
   if (snap.monthly && snap.monthly.usedPercent >= warnPercent) {
     return true;
@@ -202,7 +219,8 @@ export function severityForPercent(usedPercent: number, warnPercent: number): Se
   if (usedPercent >= 100 || usedPercent >= warnPercent) {
     return "crit";
   }
-  if (usedPercent >= Math.max(0, warnPercent - 15)) {
+  // The warn band starts 15 points below the threshold; 0% is never "warn".
+  if (usedPercent > 0 && usedPercent >= warnPercent - 15) {
     return "warn";
   }
   return "ok";
@@ -210,13 +228,18 @@ export function severityForPercent(usedPercent: number, warnPercent: number): Se
 
 /**
  * Relative countdown from a unix-seconds reset timestamp.
- * Returns e.g. "2h 14m", "45m", "just now", or "—" when unknown.
+ * Returns e.g. "2h 14m", "45m", "<1m", "now" (reset within the last minute),
+ * "passed" (reset is further in the past — the snapshot is out of date), or
+ * "—" when unknown.
  */
 export function formatCountdown(resetsAtSeconds: number | undefined, nowMs = Date.now()): string {
   if (resetsAtSeconds === undefined || !Number.isFinite(resetsAtSeconds)) {
     return "—";
   }
   const ms = resetsAtSeconds * 1000 - nowMs;
+  if (ms < -60_000) {
+    return "passed";
+  }
   if (ms <= 0) {
     return "now";
   }
@@ -259,10 +282,10 @@ export function pacePercent(
   return Math.min(100, Math.max(0, pct));
 }
 
-/** Unicode meter for tooltips, e.g. ▰▰▰▰▰▱▱▱▱▱ 52%. */
+/** Unicode meter for tooltips, e.g. ▰▰▰▰▰▱▱▱▱▱ 52%. The bar is only full at 100%. */
 export function unicodeBar(usedPercent: number, width = 10): string {
-  const clamped = Math.min(100, Math.max(0, usedPercent));
-  const filled = Math.round((clamped / 100) * width);
+  const clamped = Math.min(100, Math.max(0, Number.isFinite(usedPercent) ? usedPercent : 0));
+  const filled = clamped >= 100 ? width : Math.min(width - 1, Math.floor((clamped / 100) * width));
   return `${"▰".repeat(filled)}${"▱".repeat(width - filled)} ${Math.round(clamped)}%`;
 }
 
@@ -272,6 +295,7 @@ export function isLimitHit(snap: ProviderSnapshot): boolean {
     snap.spendControlReached ||
     snap.credits?.overageLimitReached ||
     snap.windows.some((w) => w.usedPercent >= 100) ||
+    (snap.codeReview && snap.codeReview.usedPercent >= 100) ||
     (snap.monthly && snap.monthly.usedPercent >= 100)
   );
 }

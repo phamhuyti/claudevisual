@@ -215,16 +215,44 @@ function ring(pct: number, sev: Severity): string {
   </div>`;
 }
 
+// Inline `style=""` attributes are blocked by the webview CSP (`style-src` has no
+// 'unsafe-inline'), so sizes are carried in data attributes and applied via the
+// CSSOM in applyDataStyles() after each render.
 function meter(pct: number, warn: number, pace?: number, label = "Usage"): string {
   const clamped = Math.min(100, Math.max(0, pct));
   const sev = severityForPercent(clamped, warn);
   const paceEl =
     pace !== undefined
-      ? `<span class="pace" style="left:${Math.min(100, Math.max(0, pace))}%" title="Even-pace marker"></span>`
+      ? `<span class="pace" data-left="${Math.min(100, Math.max(0, pace)).toFixed(1)}" title="Even-pace marker"></span>`
       : "";
   return `<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(clamped)}" aria-label="${esc(label)}">
-    <span class="fill ${sevClass(sev)}" style="width:${clamped}%"></span>${paceEl}
+    <span class="fill ${sevClass(sev)}" data-width="${clamped.toFixed(1)}"></span>${paceEl}
   </div>`;
+}
+
+function applyDataStyles(): void {
+  root.querySelectorAll<HTMLElement>("[data-width]").forEach((el) => {
+    const v = Number(el.getAttribute("data-width"));
+    if (Number.isFinite(v)) {
+      el.style.width = `${v}%`;
+    }
+  });
+  root.querySelectorAll<HTMLElement>("[data-left]").forEach((el) => {
+    const v = Number(el.getAttribute("data-left"));
+    if (Number.isFinite(v)) {
+      el.style.left = `${v}%`;
+    }
+  });
+}
+
+/** "resets in 2h 14m" / "reset passed" for the primary ring sub-line. */
+function resetsInText(cd: string): string {
+  return cd === "passed" ? "reset passed" : `resets in ${cd}`;
+}
+
+/** "reset 2h 14m" / "reset passed" for the collapsed glance row. */
+function glanceResetText(cd: string): string {
+  return cd === "passed" ? "reset passed" : `reset ${cd}`;
 }
 
 function windowBlock(w: RateWindow, warn: number, primary: boolean): string {
@@ -238,7 +266,7 @@ function windowBlock(w: RateWindow, warn: number, primary: boolean): string {
       ${ring(w.usedPercent, sev)}
       <div class="ring-meta">
         <div class="title">${esc(label)} window</div>
-        <div class="sub" data-reset-at="${w.resetsAt ?? ""}" title="${esc(abs)}">resets in ${esc(cd)}</div>
+        <div class="sub" data-reset-at="${w.resetsAt ?? ""}" title="${esc(abs)}">${esc(resetsInText(cd))}</div>
       </div>
     </div>`;
   }
@@ -335,7 +363,11 @@ function card(snap: ProviderSnapshot | undefined): string {
 
     if (snap.monthly) {
       const isCursorPlan = snap.provider === "cursor" && snap.monthly.source === "cursor_plan";
-      const label = isCursorPlan ? "Plan remaining" : snap.provider === "cursor" ? "Plan spend" : "Monthly spend";
+      const label = isCursorPlan
+        ? "Plan remaining"
+        : snap.provider === "cursor"
+          ? "Plan spend"
+          : "Monthly spend";
       const amount = isCursorPlan
         ? formatCursorPlanRemaining(snap.monthly, { fractionDigits: 2 })
         : `$${snap.monthly.used.toFixed(2)} / $${snap.monthly.limit.toFixed(2)}`;
@@ -352,6 +384,9 @@ function card(snap: ProviderSnapshot | undefined): string {
 
     if (snap.promoMessage) {
       body += `<div class="card-foot">${esc(snap.promoMessage)}</div>`;
+    }
+    if (snap.error && snap.status === "ok") {
+      body += `<div class="card-foot error-note" title="${esc(snap.error)}">Last refresh failed: ${esc(snap.error)}</div>`;
     }
 
     const ageSec = Math.round((Date.now() - snap.capturedAt) / 1000);
@@ -376,7 +411,7 @@ function card(snap: ProviderSnapshot | undefined): string {
       : `<span class="pct">—</span>`;
   const glanceReset =
     soonest !== undefined
-      ? `<span class="reset" data-reset-at="${soonest}">reset ${esc(formatCountdown(soonest))}</span>`
+      ? `<span class="reset" data-reset-at="${soonest}">${esc(glanceResetText(formatCountdown(soonest)))}</span>`
       : "";
 
   return `<section class="card${isCollapsed ? " collapsed" : ""}" data-provider="${id}" data-vscode-context="${ctx}">
@@ -409,7 +444,9 @@ function render(): void {
   const order = providerOrder();
   const cards = order.map((id) => card(state[id])).filter(Boolean);
   const enabled = order.filter((id) => state[id] && state[id]!.status !== "disabled").length;
-  const polling = order.some((id) => state[id]?.status === "polling");
+  const polling = order.some(
+    (id) => state[id]?.status === "polling" || state[id]?.refreshing === true
+  );
   const captured = newestCaptured();
   const ageSec = captured !== undefined ? Math.round((Date.now() - captured) / 1000) : undefined;
   const ageLabel =
@@ -430,8 +467,8 @@ function render(): void {
       </div>
     </div>`;
   } else if (cards.length === 0) {
-    body = `<div class="card skel"><div class="skel-bar" style="width:40%"></div><div class="skel-bar"></div><div class="skel-bar" style="width:70%"></div></div>
-      <div class="card skel"><div class="skel-bar" style="width:35%"></div><div class="skel-bar"></div></div>`;
+    body = `<div class="card skel"><div class="skel-bar" data-width="40"></div><div class="skel-bar"></div><div class="skel-bar" data-width="70"></div></div>
+      <div class="card skel"><div class="skel-bar" data-width="35"></div><div class="skel-bar"></div></div>`;
   } else {
     body = cards.join("");
   }
@@ -466,14 +503,7 @@ function render(): void {
       })
     );
   });
-  root.querySelectorAll<HTMLElement>("[data-provider]").forEach((card) => {
-    card.addEventListener("contextmenu", () => {
-      const provider = card.getAttribute("data-provider");
-      if (provider) {
-        vscode.postMessage({ type: "contextProvider", provider });
-      }
-    });
-  });
+  applyDataStyles();
 }
 
 function refreshRelativeTimes(): void {
@@ -489,9 +519,9 @@ function refreshRelativeTimes(): void {
     }
     const text = formatCountdown(resetsAt, now);
     if (el.classList.contains("reset")) {
-      el.textContent = `reset ${text}`;
+      el.textContent = glanceResetText(text);
     } else if (el.classList.contains("sub")) {
-      el.textContent = `resets in ${text}`;
+      el.textContent = resetsInText(text);
     } else {
       el.textContent = text;
     }
