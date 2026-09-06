@@ -12,7 +12,7 @@ import {
   windowLabel,
 } from "../domain/format";
 import { AppState, ProviderId, ProviderSnapshot } from "../domain/types";
-import { DualUsageSettings, readSettings } from "../runtime/settings";
+import { DualUsageSettings, readSettings, warnPercentFor } from "../runtime/settings";
 
 function providerTitle(id: ProviderId): string {
   if (id === "claude") {
@@ -215,7 +215,9 @@ export class StatusBarController implements vscode.Disposable {
       item.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
       return;
     }
-    const warn = live.some((s) => shouldWarn(s, settings.warnPercent, settings.creditsWarnBalance));
+    const warn = live.some((s) =>
+      shouldWarn(s, warnPercentFor(s.provider, settings), settings.creditsWarnBalance)
+    );
     item.backgroundColor = warn
       ? new vscode.ThemeColor("statusBarItem.warningBackground")
       : undefined;
@@ -229,6 +231,22 @@ export class StatusBarController implements vscode.Disposable {
   }
 }
 
+function formatAge(capturedAtMs: number, nowMs = Date.now()): string {
+  if (!Number.isFinite(capturedAtMs) || capturedAtMs <= 0) {
+    return "never";
+  }
+  const sec = Math.max(0, Math.round((nowMs - capturedAtMs) / 1000));
+  if (sec < 60) {
+    return `${sec}s ago`;
+  }
+  const min = Math.round(sec / 60);
+  if (min < 60) {
+    return `${min}m ago`;
+  }
+  const hours = Math.floor(min / 60);
+  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+}
+
 function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
   const title = providerTitle(snap.provider);
   const lines: string[] = [`**${title} account usage**`, ""];
@@ -240,6 +258,8 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
   }
   if (snap.status !== "ok") {
     lines.push(`Status: ${snap.status}${snap.error ? ` — ${snap.error}` : ""}`);
+  } else if (snap.error) {
+    lines.push(`$(warning) Last refresh failed: ${snap.error}`);
   }
   for (const w of snap.windows) {
     const cd = formatCountdown(w.resetsAt);
@@ -271,9 +291,16 @@ function buildTooltip(snap: ProviderSnapshot): vscode.MarkdownString {
   if (snap.promoMessage) {
     lines.push(snap.promoMessage);
   }
+  const flags: string[] = [];
+  if (snap.cached) {
+    flags.push("cached");
+  }
+  if (snap.stale) {
+    flags.push("stale");
+  }
   lines.push(
     "",
-    `_source: ${snap.source}_`,
+    `_source: ${snap.source} · updated ${formatAge(snap.capturedAt)}${flags.length ? ` (${flags.join(", ")})` : ""}_`,
     "",
     `[Refresh](command:dualusage.refresh${snap.provider === "claude" ? "Claude" : snap.provider === "chatgpt" ? "Chatgpt" : "Cursor"}) · [Open sidebar](command:dualusage.focusSidebar) · [Settings](command:dualusage.openSettings)`
   );

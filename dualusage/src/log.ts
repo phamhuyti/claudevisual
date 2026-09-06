@@ -30,4 +30,7 @@ export function logDebug(message: string): void {
 export function logError(message: string, err?: unknown): void {
   const detail = err instanceof Error ? err.message : err !== undefined ? String(err) : "";
   channel?.appendLine(`[error] ${message}${detail ? `: ${detail}` : ""}`);
+  if (debugEnabled && err instanceof Error && err.stack) {
+    channel?.appendLine(err.stack);
+  }
 }
