@@ -1,7 +1,7 @@
 import * as crypto from "crypto";
 import * as path from "path";
 import * as vscode from "vscode";
-import { AppState, HistoryState, ProviderId } from "../../domain/types";
+import { AppState, HistoryState, isProviderId, ProviderId } from "../../domain/types";
 import { usagePageUrl } from "../../domain/usage-links";
 import { readSettings, warnPercentFor } from "../../runtime/settings";
 
@@ -32,8 +32,7 @@ type WebviewToHost =
   | { type: "openSettings" }
   | { type: "openExternal"; url: string }
   | { type: "toggleProvider" }
-  | { type: "openUsagePage"; provider: string }
-  | { type: "contextProvider"; provider: string };
+  | { type: "openUsagePage"; provider: string };
 
 export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   static readonly viewId = "dualusage.sidebar";
@@ -42,7 +41,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private state: AppState = {};
   private history: HistoryState = { points: [] };
   private ready = false;
-  private contextProvider?: ProviderId;
   private viewDisposables: vscode.Disposable[] = [];
   private readonly extensionPath: string;
   private readonly disposables: vscode.Disposable[] = [];
@@ -100,16 +98,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         void vscode.commands.executeCommand("dualusage.toggleProvider");
         return;
       }
-      if (msg.type === "contextProvider" && typeof msg.provider === "string") {
-        if (msg.provider === "claude" || msg.provider === "chatgpt" || msg.provider === "cursor") {
-          this.contextProvider = msg.provider;
-        }
-        return;
-      }
-      if (msg.type === "openUsagePage" && typeof msg.provider === "string") {
-        const id = msg.provider as ProviderId;
-        if (id === "claude" || id === "chatgpt" || id === "cursor") {
-          void vscode.env.openExternal(vscode.Uri.parse(usagePageUrl(id)));
+      if (msg.type === "openUsagePage") {
+        if (isProviderId(msg.provider)) {
+          void vscode.env.openExternal(vscode.Uri.parse(usagePageUrl(msg.provider)));
         }
         return;
       }
@@ -128,13 +119,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         this.disposeViewListeners();
       })
     );
-  }
-
-  /** Consume the last provider set by a card contextmenu (for webview/context commands). */
-  takeContextProvider(): ProviderId | undefined {
-    const id = this.contextProvider;
-    this.contextProvider = undefined;
-    return id;
   }
 
   setState(state: AppState): void {

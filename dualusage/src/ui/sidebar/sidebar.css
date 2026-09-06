@@ -455,6 +455,14 @@ body {
   font-family: var(--mono);
 }
 
+.card-foot.error-note {
+  display: block;
+  color: var(--du-warn);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .badge {
   padding: 1px 6px;
   border-radius: var(--r-pill);

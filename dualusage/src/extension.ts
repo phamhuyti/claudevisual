@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
-import { ProviderId } from "./domain/types";
+import { isProviderId, ProviderId } from "./domain/types";
 import { usagePageUrl } from "./domain/usage-links";
-import { initLog, logInfo } from "./log";
+import { initLog, logError, logInfo } from "./log";
 import { UsageOrchestrator } from "./runtime/orchestrator";
 import { UsagePersistence } from "./runtime/persistence";
+import { migrateLegacySettings } from "./runtime/settings";
 import { ThresholdNotifier } from "./runtime/threshold-notifier";
 import { SidebarProvider } from "./ui/sidebar/sidebar-provider";
 import { StatusBarController } from "./ui/status-bar";
@@ -11,6 +12,8 @@ import { StatusBarController } from "./ui/status-bar";
 export function activate(context: vscode.ExtensionContext): void {
   initLog(context);
   logInfo("DualUsage activating");
+
+  migrateLegacySettings().catch((err) => logError("settings migration failed", err));
 
   const persistence = new UsagePersistence(context.globalState);
   const orchestrator = new UsageOrchestrator({ persistence });
@@ -54,12 +57,8 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.commands.executeCommand(`${SidebarProvider.viewId}.focus`)
     ),
     vscode.commands.registerCommand("dualusage.toggleProvider", () => toggleProviders()),
-    vscode.commands.registerCommand("dualusage.openUsagePage", async (provider?: ProviderId) => {
-      const fromContext = sidebar.takeContextProvider();
-      const id =
-        provider ??
-        fromContext ??
-        (await pickProvider("Open usage page for"));
+    vscode.commands.registerCommand("dualusage.openUsagePage", async (arg?: unknown) => {
+      const id = providerIdFromCommandArg(arg) ?? (await pickProvider("Open usage page for"));
       if (!id) {
         return;
       }
@@ -72,6 +71,22 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   // disposables handled via context.subscriptions
+}
+
+/**
+ * `dualusage.openUsagePage` can be invoked with a provider id (status bar,
+ * command palette callers) or with the merged `data-vscode-context` object that
+ * VS Code forwards from `webview/context` menus ({ webviewSection, provider, … }).
+ */
+export function providerIdFromCommandArg(arg: unknown): ProviderId | undefined {
+  if (isProviderId(arg)) {
+    return arg;
+  }
+  if (arg && typeof arg === "object") {
+    const candidate = (arg as { provider?: unknown }).provider;
+    return isProviderId(candidate) ? candidate : undefined;
+  }
+  return undefined;
 }
 
 async function toggleProviders(): Promise<void> {
@@ -110,8 +125,25 @@ async function toggleProviders(): Promise<void> {
   }
   const selected = new Set(picked.map((p) => p.id));
   for (const item of items) {
-    await cfg.update(item.key, selected.has(item.id), vscode.ConfigurationTarget.Global);
+    const next = selected.has(item.id);
+    if (next === item.picked) {
+      continue;
+    }
+    // Write to the scope that currently owns the effective value so a workspace
+    // override does not make the QuickPick appear to do nothing.
+    await cfg.update(item.key, next, owningTarget(cfg, item.key));
   }
+}
+
+function owningTarget(cfg: vscode.WorkspaceConfiguration, key: string): vscode.ConfigurationTarget {
+  const info = cfg.inspect(key);
+  if (info?.workspaceFolderValue !== undefined) {
+    return vscode.ConfigurationTarget.WorkspaceFolder;
+  }
+  if (info?.workspaceValue !== undefined) {
+    return vscode.ConfigurationTarget.Workspace;
+  }
+  return vscode.ConfigurationTarget.Global;
 }
 
 async function pickProvider(title: string): Promise<ProviderId | undefined> {
