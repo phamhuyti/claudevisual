@@ -2,7 +2,7 @@
   "name": "dualusage",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -370,7 +370,7 @@
           {
             "id": "signIn",
             "title": "Sign in to each provider",
-            "description": "Claude Code CLI, ChatGPT/Codex extension (ChatGPT login), and/or Cursor desktop \u2014 DualUsage only reads local auth.",
+            "description": "Claude Code CLI, ChatGPT/Codex extension (ChatGPT login), and/or Cursor desktop — DualUsage only reads local auth.",
             "media": {
               "svg": "resources/icon.svg",
               "altText": "Sign in"
