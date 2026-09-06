@@ -2,7 +2,7 @@
   "name": "dualusage",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "publisher": "phamhuyti",
   "license": "MIT",
   "repository": {
@@ -123,17 +123,20 @@
         "dualusage.claudePath": {
           "type": "string",
           "default": "",
-          "description": "Optional path to the `claude` executable (empty = PATH)."
+          "scope": "machine",
+          "description": "Optional path to the `claude` executable (empty = PATH). User/remote settings only — never read from workspace settings."
         },
         "dualusage.codexHome": {
           "type": "string",
           "default": "",
-          "description": "Optional Codex home directory (empty = $CODEX_HOME or ~/.codex)."
+          "scope": "machine",
+          "description": "Optional Codex home directory (empty = $CODEX_HOME or ~/.codex). User/remote settings only."
         },
         "dualusage.cursorDataPath": {
           "type": "string",
           "default": "",
-          "description": "Optional path to Cursor data root or state.vscdb (empty = OS default Cursor globalStorage)."
+          "scope": "machine",
+          "description": "Optional path to Cursor data root or state.vscdb (empty = OS default Cursor globalStorage). User/remote settings only."
         },
         "dualusage.chatgpt.source": {
           "type": "string",
@@ -260,19 +263,43 @@
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "description": "Claude poll interval in seconds (0 = use dualusage.pollIntervalSeconds)."
+          "description": "Claude poll interval in seconds: 0 = use dualusage.pollIntervalSeconds, otherwise at least 5."
         },
         "dualusage.providers.chatgpt.pollIntervalSeconds": {
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "description": "ChatGPT poll interval in seconds (0 = use dualusage.pollIntervalSeconds)."
+          "description": "ChatGPT poll interval in seconds: 0 = use dualusage.pollIntervalSeconds, otherwise at least 5."
         },
         "dualusage.providers.cursor.pollIntervalSeconds": {
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "description": "Cursor poll interval in seconds (0 = use dualusage.pollIntervalSeconds)."
+          "description": "Cursor poll interval in seconds: 0 = use dualusage.pollIntervalSeconds, otherwise at least 5."
+        },
+        "dualusage.pollIntervalMinutes": {
+          "type": "number",
+          "minimum": 0,
+          "markdownDeprecationMessage": "**Deprecated**: use `#dualusage.pollIntervalSeconds#` instead. Existing values are migrated automatically (×60).",
+          "description": "Legacy poll interval in minutes."
+        },
+        "dualusage.providers.claude.pollIntervalMinutes": {
+          "type": "number",
+          "minimum": 0,
+          "markdownDeprecationMessage": "**Deprecated**: use `#dualusage.providers.claude.pollIntervalSeconds#` instead. Existing values are migrated automatically (×60).",
+          "description": "Legacy Claude poll interval in minutes."
+        },
+        "dualusage.providers.chatgpt.pollIntervalMinutes": {
+          "type": "number",
+          "minimum": 0,
+          "markdownDeprecationMessage": "**Deprecated**: use `#dualusage.providers.chatgpt.pollIntervalSeconds#` instead. Existing values are migrated automatically (×60).",
+          "description": "Legacy ChatGPT poll interval in minutes."
+        },
+        "dualusage.providers.cursor.pollIntervalMinutes": {
+          "type": "number",
+          "minimum": 0,
+          "markdownDeprecationMessage": "**Deprecated**: use `#dualusage.providers.cursor.pollIntervalSeconds#` instead. Existing values are migrated automatically (×60).",
+          "description": "Legacy Cursor poll interval in minutes."
         }
       }
     },
@@ -318,7 +345,7 @@
             "title": "Open the DualUsage sidebar",
             "description": "Click the DualUsage activity-bar icon (or run **DualUsage: Focus Sidebar**).",
             "media": {
-              "icon": "resources/icon.svg",
+              "svg": "resources/icon.svg",
               "altText": "DualUsage"
             },
             "completionEvents": [
@@ -330,12 +357,14 @@
             "title": "Enable the providers you use",
             "description": "Run **DualUsage: Toggle Providers** or open Settings and enable Claude / ChatGPT / Cursor.",
             "media": {
-              "icon": "resources/icon.svg",
+              "svg": "resources/icon.svg",
               "altText": "Providers"
             },
             "completionEvents": [
               "onCommand:dualusage.toggleProvider",
-              "onSettingChanged:dualusage.providers.claude.enabled"
+              "onSettingChanged:dualusage.providers.claude.enabled",
+              "onSettingChanged:dualusage.providers.chatgpt.enabled",
+              "onSettingChanged:dualusage.providers.cursor.enabled"
             ]
           },
           {
@@ -343,7 +372,7 @@
             "title": "Sign in to each provider",
             "description": "Claude Code CLI, ChatGPT/Codex extension (ChatGPT login), and/or Cursor desktop \u2014 DualUsage only reads local auth.",
             "media": {
-              "icon": "resources/icon.svg",
+              "svg": "resources/icon.svg",
               "altText": "Sign in"
             }
           },
@@ -352,7 +381,7 @@
             "title": "Set warn thresholds",
             "description": "Configure ``dualusage.warnPercent`` and optional notifications so you get a one-shot toast when usage crosses the line.",
             "media": {
-              "icon": "resources/icon.svg",
+              "svg": "resources/icon.svg",
               "altText": "Thresholds"
             },
             "completionEvents": [

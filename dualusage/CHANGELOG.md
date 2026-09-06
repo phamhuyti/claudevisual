@@ -2,6 +2,39 @@
 
 All notable changes to DualUsage are documented in this file.
 
+## [0.4.4] — 2026-09-06
+
+### Security
+
+- `dualusage.claudePath`, `dualusage.codexHome`, and `dualusage.cursorDataPath` are now `machine`-scoped: they can only be set in user/remote settings, never by a workspace's `.vscode/settings.json`.
+- The Claude CLI is no longer launched through a shell on Windows. The executable is resolved via `PATH`/`PATHEXT`; only `.cmd`/`.bat` shims go through `cmd.exe`, with every metacharacter escaped.
+
+### Fixed
+
+- **Sidebar meters, pace markers, and skeleton bars render again.** The webview CSP blocks inline `style=""` attributes; sizes are now applied via the CSSOM.
+- **Open Usage Page** from a card's right-click menu opened `file:///undefined`; the command now accepts the webview context object VS Code forwards (the `contextProvider` round-trip was removed).
+- Onboarding walkthrough registers again (steps used an invalid `media.icon` key) and the "enable providers" step completes for any provider, not just Claude.
+- Data-less states (`signed out`, `cli missing`, …) no longer flicker to `…` on every poll; a `refreshing` flag drives the spinner instead.
+- A failed refresh that keeps the previous numbers now shows the error in the status-bar tooltip and on the card.
+- A forced **Refresh All** queued behind an in-flight poll is no longer replaced by a later single-provider refresh.
+- Stale badges are re-evaluated while the window is unfocused; the status-bar tooltip shows data age and cached/stale flags.
+- Non-numeric setting values fall back to defaults instead of producing `NaN` intervals (which made the poll timer spin at 1 ms).
+- Per-provider `pollIntervalSeconds` is clamped to the 5 s minimum like the global value.
+- Threshold toasts honour per-provider `warnPercent`, are not re-fired for cached numbers on every window reload, use ±5 % hysteresis, and key rate windows by duration instead of array position.
+- Status-bar warning background uses the per-provider `warnPercent`.
+- History no longer re-samples a snapshot whose refresh failed (flat-lined sparklines); retention uses the injected clock.
+- Persisted state is versioned, validated on load (unknown statuses / malformed windows dropped), written only when changed, and no longer includes the account email.
+- Tooltip unicode bars are only full at 100 % (95–99 % previously looked complete); sub-hour windows show minutes; `$0.40 left` instead of `$0 left`; a bare `$` balance is not treated as `$0`.
+- ChatGPT usage deep link points at `chatgpt.com/codex/settings/usage`.
+- README screenshots use absolute URLs so they render on the Marketplace page.
+
+### Changed
+
+- Providers are fetched and published independently: a slow Claude CLI run no longer withholds fresh ChatGPT/Cursor numbers, and settings changes only restart polling when a polling-related key changed.
+- Cursor: `state.vscdb` is read asynchronously via Node's built-in `node:sqlite` (VS Code ≥ 1.102) before falling back to the `sqlite3`/`python3` CLIs; an unreadable database is reported as an error instead of "signed out". Minted access tokens are cached until they expire, and a rotated refresh token is honoured, instead of refreshing on every poll.
+- Legacy `*.pollIntervalMinutes` values are migrated once on activation (written as seconds, legacy key removed) and are declared as deprecated settings so they no longer show as "Unknown Configuration Setting".
+- CI runs `lint` and `format:check`.
+
 ## [0.4.3] — 2026-09-05
 
 ### Changed
@@ -20,7 +53,7 @@ All notable changes to DualUsage are documented in this file.
 
 - Cursor plan usage now shows **remaining** dollars (e.g. `$0 left`) in the status bar, tooltip, and sidebar instead of `$used/$limit`.
 
-## [0.4.0]
+## [0.4.0] — 2026-09-05
 
 ### Fixed
 
@@ -33,11 +66,6 @@ All notable changes to DualUsage are documented in this file.
 - Unit tests for orchestrator refresh queue, status bar backgrounds, and format/render helpers (40 tests).
 - README light/dark sidebar preview images.
 - Minimal Vietnamese `package.nls.vi.json` for core command/view strings.
-
- — 2026-09-05
-
-### Added
-
 - Persist last AppState in `globalState` so status bar / sidebar show cached numbers immediately on startup.
 - Usage history ring (≈1 sample / 5 minutes, ~48h) with sparkline in provider cards.
 - Stale / cached badges; per-provider `pollIntervalMinutes` and `warnPercent`; `providers.order`.
