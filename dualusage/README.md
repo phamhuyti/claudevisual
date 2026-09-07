@@ -109,6 +109,14 @@ Release is created.
 - OS keyring-only Codex auth (no `auth.json` file) is not supported in v0.1 — open the ChatGPT extension so it writes file auth, or set Codex to file credential store.
 - API-key-only OpenAI auth cannot query ChatGPT plan windows; sign in with ChatGPT.
 
+## Status and roadmap
+
+DualUsage is pre-1.0: setting keys and commands may still change between minor versions, and it is
+distributed as a VSIX only (not yet on the VS Code Marketplace or Open VSX). What is left for 1.0 —
+marketplace publishing, Remote / Restricted Mode support in the manifest, provider hardening, an OS
+test matrix — and the order to do it in is tracked in
+[docs/v1-handoff.md](https://github.com/phamhuyti/claudevisual/blob/main/dualusage/docs/v1-handoff.md).
+
 ## License
 
 MIT
